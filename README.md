@@ -9,8 +9,13 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## 現状
 
-**カタログへの到達手段が未確定のため、まだメタデータは取得しない。** この初期
-コミットで入っているのは、Apple Music 版で実運用に耐えた足場だけ。
+Amazon Music の公開 Web Player が使う**匿名 GraphQL 経路**をカタログ取得方式として
+採用する。2026-09-11 の静的解析で、未ログインの guest config、匿名 application key、
+検索と ID 引きに必要な operation を確認した。調査記録は
+[docs/web-player-graphql.md](docs/web-player-graphql.md) にまとめている。
+
+この経路は公開 API ではなく Web Player の内部実装であり、現在は transport と DTO を
+実装中である。Amazon アカウント、Cookie、再生用 token は使用しない。
 
 | 層 | 状態 |
 | --- | --- |
@@ -18,28 +23,24 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 | 外部 ID（曲・アルバム・アーティスト・マーケットプレイス） | 動く |
 | 応答キャッシュ（メモリ上限つき LRU + ディスク永続化 + 同時リクエストの束ね） | 動く |
 | スロットル（直列化・間隔・429 のクールダウン） | 動く |
-| `ICatalogTransport`（生 JSON を返す契約） | 定義済み |
+| `ICatalogTransport`（生 JSON を返す契約） | GraphQL POST 対応へ移行予定 |
 | `IAmazonMusicCatalog`（検索と ID 引きの契約） | 定義済み・型引数は未確定 |
-| **ネットワーク transport** | **未着手** |
-| DTO（応答スキーマ） | 未着手 |
+| **匿名 Web Player transport** | **方式決定・実装中** |
+| DTO（応答スキーマ） | operation 単位で実装予定 |
 | メタデータ / 画像プロバイダ | 未着手 |
 
-## 最初に決めること
+## カタログ取得方針
 
-**Amazon Music には Apple の `amp-api` に相当する公開カタログ API が無い。**
-Apple Music 版は `music.apple.com` の JS バンドルから Web プレイヤー用トークンを
-取り出して公式 JSON API を叩く方式で成立したが、Amazon で同じ手が使えるかは
-未調査。少なくとも次のどれを採るかを決めないと先に進めない。
+Web Player の guest config と公開 JavaScript bundle から、その時点の endpoint、app
+version、device type、匿名 application key を実行時に取得し、Apollo GraphQL を呼ぶ。
+application key の実値はソース、設定、fixture、ログへ保存しない。
 
-1. **Amazon Music の Web プレイヤーが使う内部 API** — 認証方式・安定性・利用条件を
-   実測する必要がある。
-2. **自前バックエンド経由** — 資格情報をプラグインに持たせず中継する。Apple 版の
-   [docs/backend.md](docs/backend.md) と同じ契約に寄せられる。
-3. **Product Advertising API** — 商品情報としては引けるが、アルバムのトラック一覧や
-   アーティストの経歴が取れるかは要確認。アソシエイト登録も要る。
+主な対象は曲・アルバム・アーティストの検索と ID 引き、アルバム収録曲、アーティスト
+概要である。アートワーク URL はサイズ置換をせず opaque な値として Jellyfin へ渡す。
+JP と US は設定順に問い合わせ、ID と marketplace を必ず対で保存する。
 
-決まったら `ICatalogTransport` の実装を 1 つ足し、`PluginServiceRegistrator.Compose`
-に渡せば、キャッシュとスロットルはそのまま効く。
+内部 API の変更や利用条件には注意が必要である。fixture ベースの unit test に加えて、
+通常 CI から除外した live test で bundle と schema の変更を検出する。
 
 ## ビルド・テスト
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -224,22 +225,34 @@ public sealed class CatalogCacheTests : IDisposable
         var inner = new CountingTransport("{\"data\":[]}");
         var transport = NewTransport(inner);
 
-        await transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken);
-        await transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken);
 
         Assert.Equal(1, inner.Calls);
     }
 
     [Fact]
-    public async Task Transport_StillDistinguishesDifferentUrls()
+    public async Task Transport_StillDistinguishesDifferentLogicalRequests()
     {
         var inner = new CountingTransport("{\"data\":[]}");
         var transport = NewTransport(inner);
 
-        await transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken);
-        await transport.GetAsync("/v1/catalog/us/albums/1", TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("jp:album:1", "{\"marketplace\":\"jp\"}"), TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("us:album:1", "{\"marketplace\":\"us\"}"), TestContext.Current.CancellationToken);
 
         Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Transport_UsesTheLogicalKeyForEquivalentPostRequests()
+    {
+        var inner = new CountingTransport("{\"data\":[]}");
+        var transport = NewTransport(inner);
+
+        await transport.SendAsync(Request("jp:album:1", "{\"session\":\"first\"}"), TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("jp:album:1", "{\"session\":\"second\"}"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, inner.Calls);
     }
 
     [Fact]
@@ -253,7 +266,7 @@ public sealed class CatalogCacheTests : IDisposable
         var lookups = new List<Task<string?>>();
         for (var i = 0; i < 20; i++)
         {
-            lookups.Add(transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken));
+            lookups.Add(transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken));
         }
 
         await Task.WhenAll(lookups);
@@ -268,8 +281,8 @@ public sealed class CatalogCacheTests : IDisposable
         var inner = new CountingTransport(null);
         var transport = NewTransport(inner);
 
-        Assert.Null(await transport.GetAsync("/missing", TestContext.Current.CancellationToken));
-        Assert.Null(await transport.GetAsync("/missing", TestContext.Current.CancellationToken));
+        Assert.Null(await transport.SendAsync(Request("missing"), TestContext.Current.CancellationToken));
+        Assert.Null(await transport.SendAsync(Request("missing"), TestContext.Current.CancellationToken));
 
         Assert.Equal(1, inner.Calls);
     }
@@ -281,10 +294,10 @@ public sealed class CatalogCacheTests : IDisposable
         var transport = NewTransport(inner);
 
         await Assert.ThrowsAsync<CatalogRateLimitedException>(
-            () => transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken));
+            () => transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken));
 
         // The second call must reach the network again instead of hitting a cached null.
-        Assert.Equal("{\"data\":[]}", await transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken));
+        Assert.Equal("{\"data\":[]}", await transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken));
         Assert.Equal(2, inner.Calls);
     }
 
@@ -295,7 +308,7 @@ public sealed class CatalogCacheTests : IDisposable
         var transport = NewTransport(inner);
 
         var lookups = Enumerable.Range(0, 4)
-            .Select(_ => transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken))
+            .Select(_ => transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken))
             .ToArray();
 
         foreach (var lookup in lookups)
@@ -312,13 +325,16 @@ public sealed class CatalogCacheTests : IDisposable
         var inner = new CountingTransport("{\"data\":[]}");
         var transport = NewTransport(inner, new CatalogCacheOptions { Enabled = false });
 
-        await transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken);
-        await transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("jp:album:1"), TestContext.Current.CancellationToken);
 
         Assert.Equal(2, inner.Calls);
     }
 
     private static string Body(int bytes) => new('x', bytes);
+
+    private static CatalogRequest Request(string cacheKey, string body = "{}")
+        => new(HttpMethod.Post, "/", body, cacheKey, CatalogRequestKind.Lookup);
 
     private CatalogCache NewCache(CatalogCacheOptions? options = null)
     {
@@ -345,7 +361,7 @@ public sealed class CatalogCacheTests : IDisposable
 
         public int Calls => _calls;
 
-        public async Task<string?> GetAsync(string relativeUrl, CancellationToken cancellationToken)
+        public async Task<string?> SendAsync(CatalogRequest request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _calls);
             if (_delay > TimeSpan.Zero)
@@ -376,7 +392,7 @@ public sealed class CatalogCacheTests : IDisposable
 
         public int Calls => _calls;
 
-        public async Task<string?> GetAsync(string relativeUrl, CancellationToken cancellationToken)
+        public async Task<string?> SendAsync(CatalogRequest request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _calls);
             if (_delay > TimeSpan.Zero)

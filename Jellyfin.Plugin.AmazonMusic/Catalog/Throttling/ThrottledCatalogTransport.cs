@@ -79,22 +79,22 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
         => _gate.Dispose();
 
     /// <inheritdoc />
-    public async Task<string?> GetAsync(string relativeUrl, CancellationToken cancellationToken)
+    public async Task<string?> SendAsync(CatalogRequest request, CancellationToken cancellationToken)
     {
         var options = _options();
-        var kind = IsSearch(relativeUrl) ? "search" : "lookup";
-        var pause = IsSearch(relativeUrl) ? _searchPause : _lookupPause;
+        var kind = request.Kind == CatalogRequestKind.Search ? "search" : "lookup";
+        var pause = request.Kind == CatalogRequestKind.Search ? _searchPause : _lookupPause;
 
         for (var attempt = 1; ; attempt++)
         {
             await _gate.WaitAsync(cancellationToken);
             try
             {
-                await WaitForSlotAsync(options, pause, relativeUrl, cancellationToken);
+                await WaitForSlotAsync(options, pause, request.CacheKey, cancellationToken);
 
                 try
                 {
-                    var body = await _inner.GetAsync(relativeUrl, cancellationToken);
+                    var body = await _inner.SendAsync(request, cancellationToken);
                     pause.Cooldown = TimeSpan.Zero;
                     _nextSlot = _time.GetUtcNow() + options.MinInterval;
                     return body;
@@ -109,8 +109,8 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
                     if (attempt >= options.MaxAttempts)
                     {
                         _logger.LogWarning(
-                            "Amazon Music kept refusing {Url} after {Attempts} attempts; giving up on it and pausing {Kind} requests for {Cooldown}",
-                            relativeUrl,
+                            "Amazon Music kept refusing {CacheKey} after {Attempts} attempts; giving up on it and pausing {Kind} requests for {Cooldown}",
+                            request.CacheKey,
                             attempt,
                             kind,
                             pause.Cooldown);
@@ -118,8 +118,8 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
                     }
 
                     _logger.LogWarning(
-                        "Amazon Music rate limited {Url}; pausing {Kind} requests for {Cooldown} before attempt {Next}",
-                        relativeUrl,
+                        "Amazon Music rate limited {CacheKey}; pausing {Kind} requests for {Cooldown} before attempt {Next}",
+                        request.CacheKey,
                         kind,
                         pause.Cooldown,
                         attempt + 1);
@@ -131,9 +131,6 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
             }
         }
     }
-
-    private static bool IsSearch(string relativeUrl)
-        => relativeUrl.Contains("/search?", StringComparison.Ordinal);
 
     private static TimeSpan Min(TimeSpan left, TimeSpan right)
         => left < right ? left : right;

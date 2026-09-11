@@ -9,14 +9,14 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## 現状
 
-Amazon Music の公開 Web Player が使う**匿名 GraphQL 経路**を、ID 引きの候補として
-検証している。2026-09-11 の静的解析と実通信により、検索は GraphQL ではなく Apollo の
-local handler が Amazon 内部の REST endpoint へ変換することが判明した。調査記録は
+Amazon Music の公開 Web Player が使う**匿名 GraphQL 経路**を検証している。2026-09-11の
+静的解析により、desktop Webの検索は`tenzingTextSearch`を通常のGraphQL HttpLinkへ送り、
+iOS/AndroidだけがApollo local handlerで内部REST endpointへ変換することを確認した。調査記録は
 [docs/web-player-graphql.md](docs/web-player-graphql.md) にまとめている。
 
-この経路は公開 API ではなく Web Player の内部実装である。匿名での検索は成立していないが、
-JPではGraphQLによる曲・アルバム・アーティストのID引きを実通信で確認した。アーティストは
-匿名許可field（ID・名前・画像）に限定する。Amazon アカウントや account Cookie/token を要求する方式は採用しない。
+この経路は公開 API ではなく Web Player の内部実装である。JPではGraphQLによる曲・アルバム・
+アーティストのID引きを実通信で確認した。desktop Webの匿名検索経路は静的に確認済みで、live
+testによる最終確認を残している。Amazonアカウントやaccount Cookie/tokenを要求する方式は採用しない。
 
 | 層 | 状態 |
 | --- | --- |
@@ -27,7 +27,7 @@ JPではGraphQLによる曲・アルバム・アーティストのID引きを実
 | `ICatalogTransport`（生 JSON を返す契約） | GraphQL POST 対応済み |
 | `IAmazonMusicCatalog`（検索と ID 引きの契約） | 定義済み・型引数は未確定 |
 | 匿名 Web Player bootstrap / GraphQL transport | 実装済み・JPの曲/アルバム/アーティストID引きをlive確認済み |
-| **匿名検索** | **未成立（REST token を取得できない）** |
+| 匿名検索 | desktop GraphQL経路を実装済み・live確認待ち |
 | DTO（応答スキーマ） | ID 引き operation 単位で実装予定 |
 | メタデータ / 画像プロバイダ | 未着手 |
 
@@ -38,10 +38,10 @@ version、device type、匿名 application key を実行時に取得し、詳細
 を呼ぶ。JPでは曲・アルバム・アーティストの詳細取得とアルバム収録曲をlive確認済みで、アーティストは
 匿名で許可されたID・名前・画像だけを使う。application key の実値はソース、設定、fixture、ログへ保存しない。
 
-検索は REST `textsearch/search/v1_1` と `x-amz-access-token` を使う別経路である。guest
-session で `/pandaToken` を呼んでも token は空だったため、匿名検索は未成立であり実装しない。
-アートワーク URL はサイズ置換をせず opaque な値として Jellyfin へ渡す。ID 引きが成立した
-場合も、ID と marketplace を必ず対で保存する。
+desktop Webの検索は`tenzingTextSearch`を匿名GraphQLとして送る。空のPanda tokenは失敗条件では
+なく、Web Playerがdevice/session/territoryと匿名client IDからheaderを構築する。iOS/Androidの
+同名operationはlocal handlerがRESTへ変換する別経路である。アートワークURLはサイズ置換せず
+opaqueな値としてJellyfinへ渡し、IDとmarketplaceを必ず対で保存する。
 
 内部 API の変更や利用条件には注意が必要である。fixture ベースの unit test に加えて、
 通常 CI から除外した live test で bundle と schema の変更を検出する。

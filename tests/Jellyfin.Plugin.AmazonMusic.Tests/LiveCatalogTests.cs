@@ -30,6 +30,39 @@ public class LiveCatalogTests
         Assert.True(bootstrap.GraphQlEndpoint.IsAbsoluteUri);
     }
 
+    [Fact(Skip = LiveSkip)]
+    public async Task JapaneseGuestSearchMatchesTheExpectedSchema()
+    {
+        using var client = new HttpClient();
+        using var provider = new WebPlayerBootstrapProvider(
+            client,
+            NullLogger<WebPlayerBootstrapProvider>.Instance);
+        var identity = new WebPlayerIdentity();
+        var bootstrap = await provider.GetAsync("jp", false, TestContext.Current.CancellationToken);
+        var transport = new WebPlayerGraphQlTransport(
+            client,
+            provider,
+            identity,
+            () => TimeSpan.FromSeconds(30));
+        var request = GraphQlRequestBuilder.BuildSearch(
+            "jp",
+            "aiko",
+            identity.DeviceId,
+            bootstrap.DeviceType,
+            bootstrap.Marketplace.Locale,
+            bootstrap.Marketplace.Territory,
+            1);
+
+        var response = await transport.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(response);
+        using var document = JsonDocument.Parse(response);
+        Assert.False(document.RootElement.TryGetProperty("errors", out var errors) && errors.GetArrayLength() > 0);
+        Assert.NotEqual(
+            JsonValueKind.Null,
+            document.RootElement.GetProperty("data").GetProperty("tenzingTextSearch").ValueKind);
+    }
+
     [Theory(Skip = LiveSkip)]
     [InlineData("trackMetadata", AmazonMusicOperations.TrackMetadata, "id", "B084VVMJQ6", "track")]
     [InlineData("getAlbumMetadata", AmazonMusicOperations.GetAlbumMetadata, "id", "B084VVLR9Q", "album")]

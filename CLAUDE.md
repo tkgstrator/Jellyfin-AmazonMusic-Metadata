@@ -17,21 +17,22 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## カタログ取得方式
 
-**公開 Web Player の匿名 GraphQL 経路はID引きに使う。** JPでは2026-09-11の実通信で曲・
-アルバム・アーティストの詳細とアルバム収録曲を確認した。`album.tracks`はconnectionではなく
-Trackの配列で、アーティストは`followerCount`・`biography`・`tracks`が匿名では権限エラーになる。同日の実通信で、
-`tenzingTextSearch` は GraphQL HTTP schema に存在せず、Apollo local handler が REST 検索へ
-変換することが判明した。REST 検索には `x-amz-access-token` が必要だが、通常の guest
-bootstrap 後も `/pandaToken` は空 token を返したため、匿名検索は未成立である。実測と制約は
+**公開Web Playerの匿名GraphQL経路を使う。** JPでは2026-09-11の実通信で曲・アルバム・
+アーティストの詳細とアルバム収録曲を確認した。`album.tracks`はconnectionではなくTrackの配列で、
+アーティストは`followerCount`・`biography`・`tracks`が匿名では権限エラーになる。desktop Webの
+`tenzingTextSearch`は通常のGraphQL HttpLinkへ流れ、空Panda token時もdevice/session/territoryと
+匿名client IDから認証headerを構築する。iOS/Androidだけが同名operationをlocal handlerでRESTへ
+変換する。desktop検索のlive確認は未実施である。実測と制約は
 [docs/web-player-graphql.md](docs/web-player-graphql.md) に記録する。
 
 公開 API の契約ではないため、bootstrap、transport、operation 固有 parser を分離し、opt-in
 live test で変更を検出する。Amazon アカウント、account Cookie/token、再生用 token は扱わない。
 匿名 application key の実値をソース、設定、fixture、cache key、例外、ログへ保存しない。
 
-Web ページの HTML DOM をメタデータ源としてスクレイピングしない。entry HTML は bundle URL
-の discovery だけに使い、カタログデータは検証済みの API response から取得する。検索を
-GraphQL operationとして実装しない。ID引きはlive確認済みのoperationとfieldだけをproviderへ接続する。
+WebページのHTML DOMをメタデータ源としてスクレイピングしない。entry HTMLはbundle URLの
+discoveryだけに使い、カタログデータはAPI responseから取得する。検索はdesktop WebのGraphQL
+operationとして実装し、mobile専用REST経路と混同しない。ID引きはlive確認済みのoperationと
+fieldだけをproviderへ接続する。
 
 ## 決定済みの設計（勝手に変えない）
 

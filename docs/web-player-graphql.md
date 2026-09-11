@@ -4,14 +4,13 @@
 
 ## 結論
 
-Amazon Music の公開 Web Player は、未ログインの訪問者にも匿名セッションを発行する。
-詳細取得には Apollo GraphQL の匿名経路が存在する一方、検索は GraphQL HTTP endpointへ
-送られず、Apollo local handler が内部 REST endpoint へ変換する。REST検索に必要なtokenは
-通常のguest bootstrapでも空だったため、アカウントなしの検索は成立していない。
+Amazon Musicの公開Web Playerは、未ログインの訪問者にも匿名セッションを発行する。
+desktop Webでは検索と詳細取得をApollo GraphQLの匿名経路へ送り、iOS/Androidだけが
+`tenzingTextSearch`をApollo local handlerで内部REST endpointへ変換する。
 
-これは公開 API の契約ではなく Web Player の内部実装である。bundle、operation、schema、
-endpoint、認証 header は予告なく変わる可能性がある。GraphQLによるID引きもまだlive
-検証を終えておらず、unit fixtureに加えてopt-in live testで成立を確認する必要がある。
+これは公開APIの契約ではなくWeb Playerの内部実装である。bundle、operation、schema、
+endpoint、認証headerは予告なく変わる可能性がある。GraphQLによるID引きはJPでlive確認済み、
+desktop Webの匿名検索は静的経路を確認済みでopt-in live testによる最終確認を残している。
 
 ## 調査方法
 
@@ -95,10 +94,14 @@ JPの匿名guestで公開ASINを使って実測した結果、4 operationともH
 `getArtistSummary`では`followerCount`、`biography`、`tracks`がfield-level permission errorになるため、
 匿名で許可された`id`、`name`、`images`だけを選択する。
 
-## 検索はREST
+## 検索経路
 
-UIはApollo上で`tenzingTextSearch`を発行するが、Web Playerのlocal linkが横取りして次のREST
-requestへ変換する。
+検索UIはApollo上で`tenzingTextSearch`を発行する。desktop Webではlocal handlerを登録せず、
+通常のFirefly GraphQL HttpLinkへ送る。空のPanda tokenは失敗条件ではなく、Web Playerは
+`deviceId`、`deviceType`、`sessionId`、`musicTerritory`、匿名client IDから認証contextを作り、
+匿名`x-api-key`とdevice/session headerへ展開する。
+
+iOS/Androidでは同名operationをlocal handlerが横取りし、次のREST requestへ変換する。
 
 ```text
 POST https://music.amazon.com/{region}/api/textsearch/search/v1_1/
@@ -107,15 +110,12 @@ x-amz-access-token: <runtime token>
 Content-Encoding: amz-1.0
 ```
 
-JPの`region`は`FE`である。GraphQL endpointへ`tenzingTextSearch`を直接送ると、input typeと
-query fieldが存在しないschema errorになった。
+JPの`region`は`FE`である。このREST経路をdesktop Webへ適用してはいけない。以前のprobeで
+GraphQL schema errorになったのはWeb Playerの完全なquery/fragmentを再現しておらず、desktop
+経路を否定する根拠にはならない。実装した最小queryはAlbum/Artist/Trackだけを選択し、bundleと
+同じ`TenzingTextSearchGqlRequest`とrequest shapeを使う。live確認は通常skipのtestとして残す。
 
-Web PlayerのIdentity初期化は同一originの`GET /pandaToken`を呼ぶ。cookieなしの直接呼出しと、
-通常ページ→config→`/pandaToken`をguest cookie付きで再現した場合の両方でHTTP 200になったが、
-`accessToken`は空だった。そのため匿名REST検索は成立しておらず、account token等を要求する
-方式で回避しない。
-
-REST検索backendのresource discriminatorとして以下を確認した。
+検索backendのresource discriminatorとして以下を確認した。
 
 - `com.amazon.music.platform.model#CatalogAlbum`
 - `com.amazon.music.platform.model#CatalogArtist`
@@ -163,9 +163,9 @@ URLはopaqueとして一切加工しない。Amazon固有に見える `_SX` / `_
 
 1. JP/USの公開Web Playerからentry HTMLとguest configを一時領域へ取得する。
 2. `main.<hash>.js` とconfig内の `dragonflyBundle` を特定する。
-3. 詳細取得operation、匿名header生成、endpoint解決とREST検索handlerを静的に確認する。
+3. desktop GraphQL検索、mobile REST handler、詳細取得operation、匿名header生成、endpoint解決を静的に確認する。
 4. 実測値をredactした最小fixtureだけを更新する。
-5. opt-in live testでbootstrapとID round-tripを確認する。検索は匿名tokenの取得経路が成立した場合だけ検証する。
+5. opt-in live testでbootstrap、desktop検索、ID round-tripを確認する。
 6. 完全bundle、有効なapplication key、Cookie、account token、runtime識別子はコミットしない。
 
 ## 未確認事項

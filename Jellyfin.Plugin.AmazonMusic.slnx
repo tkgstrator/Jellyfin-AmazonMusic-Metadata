@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Jellyfin.Plugin.AmazonMusic/Jellyfin.Plugin.AmazonMusic.csproj" />
+  <Project Path="tests/Jellyfin.Plugin.AmazonMusic.Tests/Jellyfin.Plugin.AmazonMusic.Tests.csproj" />
+</Solution>

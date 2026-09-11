@@ -1,0 +1,137 @@
+name: Integration
+
+# Feature branches and pull requests.
+# Also called by deployment.yaml so that every release goes through the exact
+# same checks — keep new checks in this file only.
+on:
+  push:
+    branches-ignore:
+      - master
+      - develop
+  pull_request:
+  workflow_call:
+    inputs:
+      lint-commits:
+        description: Run commitlint. Disabled when called from deployment.yaml, since merge commits are not Conventional Commits.
+        type: boolean
+        default: true
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  commitlint:
+    name: Commit Lint
+    if: ${{ inputs.lint-commits != false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install commitlint
+        run: |
+          bun install conventional-changelog-conventionalcommits
+          bun install @commitlint/config-conventional@latest
+          bun install commitlint@latest
+      - name: Validate PR commits
+        if: github.event_name == 'pull_request'
+        run: |
+          bunx commitlint \
+            --from ${{ github.event.pull_request.head.sha }}~${{ github.event.pull_request.commits }} \
+            --to ${{ github.event.pull_request.head.sha }} \
+            --verbose
+      - name: Validate last commit
+        if: github.event_name == 'push'
+        run: bunx commitlint --last --verbose
+
+  actionlint:
+    name: Workflow Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
+
+  lint:
+    name: Lint (dotnet format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore
+      - name: Verify formatting
+        run: dotnet format --no-restore --verify-no-changes --verbosity diagnostic
+
+  build:
+    name: Build (${{ matrix.tfm }} / Jellyfin ${{ matrix.jellyfin }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tfm: net9.0
+            jellyfin: '10.11'
+          - tfm: net10.0
+            jellyfin: '12.0'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore
+      # Analyzers run here: the project sets TreatWarningsAsErrors, so any
+      # StyleCop / .NET analyzer violation fails this job.
+      - name: Build
+        run: >-
+          dotnet build --no-restore --configuration Release
+          --framework ${{ matrix.tfm }}
+          Jellyfin.Plugin.AmazonMusic/Jellyfin.Plugin.AmazonMusic.csproj
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Both runtimes are required: tests target net9.0 and net10.0, and
+      # Jellyfin.Controller pulls in ASP.NET Core.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore
+      - name: Test
+        run: dotnet test --no-restore --configuration Release

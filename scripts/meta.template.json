@@ -1,0 +1,15 @@
+{
+  "category": "Metadata",
+  "guid": "61669a89-87d3-4865-81b1-a656c68becde",
+  "name": "Amazon Music (JP, US)",
+  "overview": "Amazon Music metadata and artwork for tracks, albums and artists.",
+  "description": "Fetches track, album and artist metadata and artwork from the Amazon Music catalog. Supports the Japanese and US storefronts with configurable fallback order.",
+  "owner": "tkgstrator",
+  "targetAbi": "__TARGET_ABI__",
+  "version": "__VERSION__",
+  "timestamp": "__TIMESTAMP__",
+  "changelog": "__CHANGELOG__",
+  "status": 0,
+  "autoUpdate": true,
+  "imagePath": ""
+}

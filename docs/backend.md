@@ -64,16 +64,17 @@ CatalogRequest
   ├─ relative URL
   ├─ GraphQL request body
   ├─ stable cache key
-  └─ request kind (Search / Lookup)
+  └─ request kind (Lookup; Search is reserved)
         ↓
 ICatalogTransport.SendAsync(...)
         ↓
 raw GraphQL JSONまたは明示的なnot-found
 ```
 
-バックエンドtransportは、プラグインが作成したGraphQL operationとvariablesを上流へ中継し、
-レスポンス本文を再整形せず返す。こうすることで、operation固有DTO、parse、marketplace
-fallback、cache、throttleを直接接続時と共有できる。
+バックエンドtransportは、プラグインが作成した詳細取得用GraphQL operationとvariablesを
+上流へ中継し、レスポンス本文を再整形せず返す。こうすることで、operation固有DTO、parse、
+marketplace fallback、cache、throttleを直接接続時と共有できる。検索は別のREST経路であり、
+匿名access tokenを取得できていない現時点では中継契約の対象にしない。
 
 ## 将来の中継契約
 

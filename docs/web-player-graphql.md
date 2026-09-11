@@ -4,14 +4,14 @@
 
 ## 結論
 
-Amazon Music の公開 Web Player は、未ログインの訪問者にも匿名セッションを発行し、
-Apollo GraphQL 経由でカタログを検索・参照する。Jellyfin プラグインは、Amazon
-アカウント、Cookie、再生用 token を持たずに、この匿名経路を transport として利用
-できる見込みが高い。
+Amazon Music の公開 Web Player は、未ログインの訪問者にも匿名セッションを発行する。
+詳細取得には Apollo GraphQL の匿名経路が存在する一方、検索は GraphQL HTTP endpointへ
+送られず、Apollo local handler が内部 REST endpoint へ変換する。REST検索に必要なtokenは
+通常のguest bootstrapでも空だったため、アカウントなしの検索は成立していない。
 
 これは公開 API の契約ではなく Web Player の内部実装である。bundle、operation、schema、
-endpoint、認証 header は予告なく変わる可能性があるため、unit fixture に加えて opt-in
-live test で変化を検出する。
+endpoint、認証 header は予告なく変わる可能性がある。GraphQLによるID引きもまだlive
+検証を終えておらず、unit fixtureに加えてopt-in live testで成立を確認する必要がある。
 
 ## 調査方法
 
@@ -81,29 +81,46 @@ SigV4などのrequest signingは確認されなかった。
 Cookie認証経路と `Authorization: AmznMusic ...` を使うaccount token経路もbundle内に存在
 するが、プラグインでは使用しない。
 
-## 確認したoperation
+## 詳細取得用GraphQL operation
 
 | 用途 | operation |
 | --- | --- |
-| 横断検索 | `tenzingTextSearch` |
 | アルバム基本情報 | `getAlbumMetadata`, `albumMetadata` |
 | アルバム収録曲 | `getAlbumTracks` |
 | 曲のID引き | `trackMetadata` |
 | アーティスト概要 | `getArtistSummary`, `getArtistByAsin` |
 
-`tenzingTextSearch` は `customerIdentity`、`locale`、`musicTerritory`、検索語、feature、
-`resultSpecs` を受ける。検索種別には `catalog_album`、`catalog_artist`、`catalog_track` が
-あり、結果は `edgeCount`、`totalCount`、`edges[].node` を持つconnection形式になる。
+これらはbundle内で確認したが、匿名guestで各operationが許可されるかはlive test未確認である。
 
-検索backendのresource discriminatorとして以下を確認した。
+## 検索はREST
+
+UIはApollo上で`tenzingTextSearch`を発行するが、Web Playerのlocal linkが横取りして次のREST
+requestへ変換する。
+
+```text
+POST https://music.amazon.com/{region}/api/textsearch/search/v1_1/
+X-Amz-Target: com.amazon.tenzing.textsearch.v1_1.TenzingTextSearchServiceExternalV1_1.search
+x-amz-access-token: <runtime token>
+Content-Encoding: amz-1.0
+```
+
+JPの`region`は`FE`である。GraphQL endpointへ`tenzingTextSearch`を直接送ると、input typeと
+query fieldが存在しないschema errorになった。
+
+Web PlayerのIdentity初期化は同一originの`GET /pandaToken`を呼ぶ。cookieなしの直接呼出しと、
+通常ページ→config→`/pandaToken`をguest cookie付きで再現した場合の両方でHTTP 200になったが、
+`accessToken`は空だった。そのため匿名REST検索は成立しておらず、account token等を要求する
+方式で回避しない。
+
+REST検索backendのresource discriminatorとして以下を確認した。
 
 - `com.amazon.music.platform.model#CatalogAlbum`
 - `com.amazon.music.platform.model#CatalogArtist`
 - `com.amazon.music.platform.model#CatalogTrack`
 
-主なIDはASINであり、アーティストでは `localAsin` も使われる。IDと取得可能な内容は
-marketplace/territoryに依存する可能性があるため、JellyfinにはIDとmarketplaceを必ず対で
-保存する。
+主なIDはASINであり、アーティストでは`localAsin`も使われる。IDと取得可能な内容は
+marketplace/territoryに依存する可能性があるため、ID引きが成立した場合はJellyfinへIDと
+marketplaceを必ず対で保存する。
 
 ## Response schema
 
@@ -134,7 +151,7 @@ URLはopaqueとして一切加工しない。Amazon固有に見える `_SX` / `_
 - 429はnot-foundではなく専用例外として伝え、cacheしない。
 - 401/403はbootstrapを一度だけ更新して再送し、再失敗時は例外にする。
 - GraphQL error、壊れたJSON、5xxもnegative cacheしない。
-- 検索とID引きを直列化し、間隔を空ける。
+- ID引きを直列化し、間隔を空ける。検索を実装する場合も同じ制御に通す。
 - marketplace fallbackは明示的not-found/空結果のときだけ行う。
 - 429の閾値や `Retry-After` の挙動は未確認であり、live testは少数のrequestに留める。
 
@@ -142,9 +159,9 @@ URLはopaqueとして一切加工しない。Amazon固有に見える `_SX` / `_
 
 1. JP/USの公開Web Playerからentry HTMLとguest configを一時領域へ取得する。
 2. `main.<hash>.js` とconfig内の `dragonflyBundle` を特定する。
-3. operation名、匿名header生成、endpoint解決、検索request builderを静的に確認する。
+3. 詳細取得operation、匿名header生成、endpoint解決とREST検索handlerを静的に確認する。
 4. 実測値をredactした最小fixtureだけを更新する。
-5. opt-in live testでbootstrap、検索、ID round-tripを確認する。
+5. opt-in live testでbootstrapとID round-tripを確認する。検索は匿名tokenの取得経路が成立した場合だけ検証する。
 6. 完全bundle、有効なapplication key、Cookie、account token、runtime識別子はコミットしない。
 
 ## 未確認事項

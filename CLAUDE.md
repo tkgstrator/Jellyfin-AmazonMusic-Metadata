@@ -17,17 +17,19 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## カタログ取得方式
 
-**公開 Web Player の匿名 GraphQL 経路を使う。** 2026-09-11 の静的解析で、未ログインの
-guest config、bundle 内の匿名 application key、検索と ID 引きの operation を確認した。
-実測と制約は [docs/web-player-graphql.md](docs/web-player-graphql.md) に記録する。
+**公開 Web Player の匿名 GraphQL 経路は ID 引きに限って検証中。** 2026-09-11 の実通信で、
+`tenzingTextSearch` は GraphQL HTTP schema に存在せず、Apollo local handler が REST 検索へ
+変換することが判明した。REST 検索には `x-amz-access-token` が必要だが、通常の guest
+bootstrap 後も `/pandaToken` は空 token を返したため、匿名検索は未成立である。実測と制約は
+[docs/web-player-graphql.md](docs/web-player-graphql.md) に記録する。
 
-これは公開 API の契約ではないため、bootstrap、GraphQL transport、operation 固有 parserを
-分離し、opt-in live test で変更を検出する。Amazon アカウント、Cookie、再生用 token は
-扱わない。匿名 application key の実値をソース、設定、fixture、cache key、例外、ログへ
-保存しない。
+公開 API の契約ではないため、bootstrap、transport、operation 固有 parser を分離し、opt-in
+live test で変更を検出する。Amazon アカウント、account Cookie/token、再生用 token は扱わない。
+匿名 application key の実値をソース、設定、fixture、cache key、例外、ログへ保存しない。
 
-Web ページの HTML DOM をメタデータ源としてスクレイピングしない。entry HTML はbundle
-URLのdiscoveryだけに使い、カタログデータはGraphQLから取得する。
+Web ページの HTML DOM をメタデータ源としてスクレイピングしない。entry HTML は bundle URL
+の discovery だけに使い、カタログデータは検証済みの API response から取得する。検索を
+GraphQL operationとして実装せず、ID 引きも live test が通るまで provider に接続しない。
 
 ## 決定済みの設計（勝手に変えない）
 

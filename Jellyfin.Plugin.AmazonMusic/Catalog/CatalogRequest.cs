@@ -16,16 +16,19 @@ public sealed class CatalogRequest
     /// <param name="body">Request body, or null when the request has none.</param>
     /// <param name="cacheKey">Stable logical cache key.</param>
     /// <param name="kind">Request kind used for independent throttling.</param>
+    /// <param name="marketplace">Marketplace whose catalog should answer the request.</param>
     public CatalogRequest(
         HttpMethod method,
         string relativeUrl,
         string? body,
         string cacheKey,
-        CatalogRequestKind kind)
+        CatalogRequestKind kind,
+        string marketplace = CatalogOptions.Japan)
     {
         ArgumentNullException.ThrowIfNull(method);
         ArgumentException.ThrowIfNullOrWhiteSpace(relativeUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(marketplace);
 
         if (!relativeUrl.StartsWith('/'))
         {
@@ -42,6 +45,7 @@ public sealed class CatalogRequest
         Body = body;
         CacheKey = cacheKey;
         Kind = kind;
+        Marketplace = marketplace;
     }
 
     /// <summary>
@@ -68,4 +72,9 @@ public sealed class CatalogRequest
     /// Gets the request kind used for independent throttling.
     /// </summary>
     public CatalogRequestKind Kind { get; }
+
+    /// <summary>
+    /// Gets the marketplace whose catalog should answer the request.
+    /// </summary>
+    public string Marketplace { get; }
 }

@@ -90,7 +90,10 @@ Cookie認証経路と `Authorization: AmznMusic ...` を使うaccount token経�
 | 曲のID引き | `trackMetadata` |
 | アーティスト概要 | `getArtistSummary`, `getArtistByAsin` |
 
-これらはbundle内で確認したが、匿名guestで各operationが許可されるかはlive test未確認である。
+JPの匿名guestで公開ASINを使って実測した結果、4 operationともHTTP 200、GraphQL errorなしで
+取得できた。`album.tracks`はconnectionではなくTrackの配列であり、各Trackのfieldを直接選択する。
+`getArtistSummary`では`followerCount`、`biography`、`tracks`がfield-level permission errorになるため、
+匿名で許可された`id`、`name`、`images`だけを選択する。
 
 ## 検索はREST
 
@@ -128,9 +131,10 @@ marketplaceを必ず対で保存する。
 
 - Album: `id`, `title`, `copyright`, `trackCount`, `duration`, `releaseDate`, `format`,
   `audioQualities`, `images`, `contributingArtists`
-- Artist: `id`, `name`, `followerCount`, `biography.text`, `images`, `tracks.edgeCount`
+- Artist: `id`, `name`, `images`（`followerCount`、`biography`、`tracks`は匿名guestで権限なし）
 - Track: `id`, `title`, `shortTitle`, `releaseDate`, `languageOfPerformance`, `images`,
   `parentalSettings`, `album`, `contributingArtists`
+- Album tracks: `album.tracks[]`（connectionではなくTrackの配列）
 - Image: `url`, `width`, `height`, `imageType`
 
 標準envelopeは `{ "data": { ... }, "errors": [...] }` である。HTTP 200でも `errors` があり
@@ -167,7 +171,7 @@ URLはopaqueとして一切加工しない。Amazon固有に見える `_SX` / `_
 ## 未確認事項
 
 - ブラウザNetwork上の最終request/response
-- JP/USそれぞれでの全operationのguest許可範囲
+- USでの各operationのguest許可範囲
 - 429閾値と `Retry-After`
 - ASINのterritory間互換性
 - 自動取得、cache、artwork利用に関する利用条件

@@ -26,6 +26,20 @@ public class GraphQlRequestBuilderTests
     }
 
     [Fact]
+    public void AlbumTracks_SelectsTheTrackArrayDirectly()
+    {
+        Assert.Contains("tracks {", AmazonMusicOperations.GetAlbumTracks, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("tracks { edgeCount", AmazonMusicOperations.GetAlbumTracks, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("tracks { edges", AmazonMusicOperations.GetAlbumTracks, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ArtistSummary_DoesNotRequestRestrictedTrackSummary()
+    {
+        Assert.DoesNotContain("tracks", AmazonMusicOperations.GetArtistSummary, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Build_SeparatesVariablesAndMarketplaces()
     {
         var first = Build("jp", "A");

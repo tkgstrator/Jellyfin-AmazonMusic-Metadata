@@ -14,9 +14,9 @@ Amazon Music の公開 Web Player が使う**匿名 GraphQL 経路**を、ID 引
 local handler が Amazon 内部の REST endpoint へ変換することが判明した。調査記録は
 [docs/web-player-graphql.md](docs/web-player-graphql.md) にまとめている。
 
-この経路は公開 API ではなく Web Player の内部実装である。匿名での検索はまだ成立して
-おらず、GraphQL による ID 引きも実通信での検証中である。Amazon アカウントや account
-Cookie/token を要求する方式は採用しない。
+この経路は公開 API ではなく Web Player の内部実装である。匿名での検索は成立していないが、
+JPではGraphQLによる曲・アルバム・アーティストのID引きを実通信で確認した。アーティストは
+匿名許可field（ID・名前・画像）に限定する。Amazon アカウントや account Cookie/token を要求する方式は採用しない。
 
 | 層 | 状態 |
 | --- | --- |
@@ -26,7 +26,7 @@ Cookie/token を要求する方式は採用しない。
 | スロットル（直列化・間隔・429 のクールダウン） | 動く |
 | `ICatalogTransport`（生 JSON を返す契約） | GraphQL POST 対応済み |
 | `IAmazonMusicCatalog`（検索と ID 引きの契約） | 定義済み・型引数は未確定 |
-| 匿名 Web Player bootstrap / GraphQL transport | 実装済み・ID 引きは live 未検証 |
+| 匿名 Web Player bootstrap / GraphQL transport | 実装済み・JPの曲/アルバム/アーティストID引きをlive確認済み |
 | **匿名検索** | **未成立（REST token を取得できない）** |
 | DTO（応答スキーマ） | ID 引き operation 単位で実装予定 |
 | メタデータ / 画像プロバイダ | 未着手 |
@@ -35,7 +35,8 @@ Cookie/token を要求する方式は採用しない。
 
 Web Player の guest config と公開 JavaScript bundle から、その時点の endpoint、app
 version、device type、匿名 application key を実行時に取得し、詳細取得用の Apollo GraphQL
-を呼ぶ方式を検証している。application key の実値はソース、設定、fixture、ログへ保存しない。
+を呼ぶ。JPでは曲・アルバム・アーティストの詳細取得とアルバム収録曲をlive確認済みで、アーティストは
+匿名で許可されたID・名前・画像だけを使う。application key の実値はソース、設定、fixture、ログへ保存しない。
 
 検索は REST `textsearch/search/v1_1` と `x-amz-access-token` を使う別経路である。guest
 session で `/pandaToken` を呼んでも token は空だったため、匿名検索は未成立であり実装しない。

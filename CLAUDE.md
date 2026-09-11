@@ -17,7 +17,9 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## カタログ取得方式
 
-**公開 Web Player の匿名 GraphQL 経路は ID 引きに限って検証中。** 2026-09-11 の実通信で、
+**公開 Web Player の匿名 GraphQL 経路はID引きに使う。** JPでは2026-09-11の実通信で曲・
+アルバム・アーティストの詳細とアルバム収録曲を確認した。`album.tracks`はconnectionではなく
+Trackの配列で、アーティストは`followerCount`・`biography`・`tracks`が匿名では権限エラーになる。同日の実通信で、
 `tenzingTextSearch` は GraphQL HTTP schema に存在せず、Apollo local handler が REST 検索へ
 変換することが判明した。REST 検索には `x-amz-access-token` が必要だが、通常の guest
 bootstrap 後も `/pandaToken` は空 token を返したため、匿名検索は未成立である。実測と制約は
@@ -29,7 +31,7 @@ live test で変更を検出する。Amazon アカウント、account Cookie/tok
 
 Web ページの HTML DOM をメタデータ源としてスクレイピングしない。entry HTML は bundle URL
 の discovery だけに使い、カタログデータは検証済みの API response から取得する。検索を
-GraphQL operationとして実装せず、ID 引きも live test が通るまで provider に接続しない。
+GraphQL operationとして実装しない。ID引きはlive確認済みのoperationとfieldだけをproviderへ接続する。
 
 ## 決定済みの設計（勝手に変えない）
 

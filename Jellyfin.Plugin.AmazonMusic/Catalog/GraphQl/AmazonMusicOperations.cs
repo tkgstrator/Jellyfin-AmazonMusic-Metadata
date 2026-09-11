@@ -38,7 +38,12 @@ public static class AmazonMusicOperations
     public const string GetAlbumTracks = """
         query getAlbumTracks($id: String!) {
           album(id: $id) {
-            id tracks { edgeCount edges { node { id title } } }
+            id
+            tracks {
+              id title shortTitle releaseDate
+              images { url }
+              contributingArtists { edges { node { id name } role } }
+            }
           }
         }
         """;
@@ -49,9 +54,8 @@ public static class AmazonMusicOperations
     public const string GetArtistSummary = """
         query getArtistSummary($artistId: String!) {
           artist(id: $artistId) {
-            id name followerCount biography { text }
+            id name
             images { width height url imageType }
-            tracks { edgeCount }
           }
         }
         """;

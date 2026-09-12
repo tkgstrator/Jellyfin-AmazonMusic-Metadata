@@ -31,7 +31,6 @@ internal static class CatalogResponseParser
             {
                 Name = item.Name,
                 AlbumId = item.AlbumId,
-                AlbumName = item.SecondaryText,
                 Artists = string.IsNullOrWhiteSpace(item.SecondaryText) ? [] : [new CatalogArtist(null, item.SecondaryText)],
                 Artwork = item.Artwork,
             })).ToList();
@@ -86,6 +85,7 @@ internal static class CatalogResponseParser
             AlbumId = album.ValueKind == JsonValueKind.Object ? OptionalString(album, "id") : null,
             AlbumName = album.ValueKind == JsonValueKind.Object ? OptionalString(album, "title") : null,
             Artists = artists,
+            TrackNumber = ReadInt(element, "trackNumber"),
             ReleaseDate = ReadDate(element),
             Artwork = ReadArtwork(element),
         })
@@ -121,7 +121,7 @@ internal static class CatalogResponseParser
         var albumId = RequiredString(element, "id");
         var albumName = RequiredString(element, "title");
         var albumTracks = tracksResource.Value.TryGetProperty("tracks", out var trackArray) && trackArray.ValueKind == JsonValueKind.Array
-            ? trackArray.EnumerateArray().Select((track, index) => ToAlbumTrack(track, marketplace, albumId, albumName, index + 1)).ToList()
+            ? trackArray.EnumerateArray().Select(track => ToAlbumTrack(track, marketplace, albumId, albumName)).ToList()
             : throw new CatalogProtocolException("The album tracks response did not contain a track array.");
         return new CatalogItem<AlbumAttributes>(albumId, marketplace, new AlbumAttributes
         {
@@ -308,8 +308,7 @@ internal static class CatalogResponseParser
         JsonElement element,
         string marketplace,
         string albumId,
-        string albumName,
-        int trackNumber)
+        string albumName)
     {
         var artists = ReadArtists(element);
         return new CatalogItem<SongAttributes>(RequiredString(element, "id"), marketplace, new SongAttributes
@@ -318,7 +317,7 @@ internal static class CatalogResponseParser
             AlbumId = albumId,
             AlbumName = albumName,
             Artists = artists,
-            TrackNumber = trackNumber,
+            TrackNumber = ReadInt(element, "trackNumber"),
             ReleaseDate = ReadDate(element),
             Artwork = ReadArtwork(element),
         })
@@ -373,6 +372,9 @@ internal static class CatalogResponseParser
         => Uri.TryCreate(url, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttps
             ? new Artwork(url, width, height)
             : null;
+
+    private static int? ReadInt(JsonElement element, string name)
+        => element.TryGetProperty(name, out var value) && value.TryGetInt32(out var parsed) ? parsed : null;
 
     private static DateTimeOffset? ReadDate(JsonElement element)
         => OptionalString(element, "releaseDate") is { } value

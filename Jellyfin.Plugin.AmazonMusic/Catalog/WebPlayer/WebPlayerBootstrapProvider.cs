@@ -70,6 +70,32 @@ public sealed class WebPlayerBootstrapProvider : IWebPlayerBootstrapProvider, ID
     }
 
     /// <inheritdoc />
+    public async Task<WebPlayerBootstrap> RefreshAsync(
+        string marketplace,
+        WebPlayerBootstrap staleSnapshot,
+        CancellationToken cancellationToken)
+    {
+        var definition = MarketplaceDefinition.Resolve(marketplace);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_snapshots.TryGetValue(definition.Id, out var current)
+                && !ReferenceEquals(current, staleSnapshot))
+            {
+                return current;
+            }
+
+            var refreshed = await FetchAsync(definition, cancellationToken);
+            _snapshots[definition.Id] = refreshed;
+            return refreshed;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <inheritdoc />
     public void Dispose()
         => _gate.Dispose();
 

@@ -17,13 +17,15 @@ public sealed class CatalogRequest
     /// <param name="cacheKey">Stable logical cache key.</param>
     /// <param name="kind">Request kind used for independent throttling.</param>
     /// <param name="marketplace">Marketplace whose catalog should answer the request.</param>
+    /// <param name="validateResponse">Validates a successful body before it enters the cache.</param>
     public CatalogRequest(
         HttpMethod method,
         string relativeUrl,
         string? body,
         string cacheKey,
         CatalogRequestKind kind,
-        string marketplace = CatalogOptions.Japan)
+        string marketplace = CatalogOptions.Japan,
+        Action<string>? validateResponse = null)
     {
         ArgumentNullException.ThrowIfNull(method);
         ArgumentException.ThrowIfNullOrWhiteSpace(relativeUrl);
@@ -46,6 +48,7 @@ public sealed class CatalogRequest
         CacheKey = cacheKey;
         Kind = kind;
         Marketplace = marketplace;
+        ValidateResponse = validateResponse;
     }
 
     /// <summary>
@@ -77,4 +80,9 @@ public sealed class CatalogRequest
     /// Gets the marketplace whose catalog should answer the request.
     /// </summary>
     public string Marketplace { get; }
+
+    /// <summary>
+    /// Gets the successful-response validator.
+    /// </summary>
+    internal Action<string>? ValidateResponse { get; }
 }

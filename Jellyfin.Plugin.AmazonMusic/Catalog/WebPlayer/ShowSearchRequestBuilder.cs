@@ -30,7 +30,8 @@ public static class ShowSearchRequestBuilder
             body,
             $"show-search:v1:{marketplace}:{hash}",
             CatalogRequestKind.Search,
-            marketplace);
+            marketplace,
+            CatalogResponseValidator.ValidateSearch);
     }
 
     internal static string BuildWireBody(

@@ -63,8 +63,6 @@ ABI ごとに別 zip で出す。
 | 設定 | 意味 |
 | --- | --- |
 | Marketplaces | 問い合わせるマーケットプレイスの順（既定 `jp` → `us`） |
-| Language override | localeの上書き。既定はマーケットプレイスに追従 |
-| Max search results | 検索の取得件数 |
 | Request timeout | カタログ呼び出しのタイムアウト（秒） |
 | Request interval | リクエストの最小間隔（ミリ秒） |
 | Cache | 有効・寿命・メモリ上限・ディスクに書く上限サイズ |

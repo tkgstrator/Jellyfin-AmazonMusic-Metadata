@@ -38,16 +38,15 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             var cache = provider.GetRequiredService<ICatalogCache>();
             var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
             var timeout = CurrentRequestTimeout;
-            var search = Compose(new ShowSearchTransport(CreateHttpClient(provider), bootstrap, timeout), cache, loggerFactory);
-            var lookup = Compose(
+            var network = new CatalogTransportRouter(
+                new ShowSearchTransport(CreateHttpClient(provider), bootstrap, timeout),
                 new WebPlayerGraphQlTransport(
                     CreateHttpClient(provider),
                     bootstrap,
                     provider.GetRequiredService<WebPlayerIdentity>(),
-                    timeout),
-                cache,
-                loggerFactory);
-            return new AmazonMusicCatalog(search, lookup, CurrentOptions);
+                    timeout));
+            var transport = Compose(network, cache, loggerFactory);
+            return new AmazonMusicCatalog(transport, transport, CurrentOptions);
         });
     }
 

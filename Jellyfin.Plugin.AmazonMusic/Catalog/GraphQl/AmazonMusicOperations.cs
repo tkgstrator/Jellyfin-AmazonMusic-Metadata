@@ -11,7 +11,7 @@ public static class AmazonMusicOperations
     public const string TrackMetadata = """
         query trackMetadata($id: String!) {
           track(id: $id) {
-            id title shortTitle releaseDate languageOfPerformance
+            id title shortTitle duration trackNumber releaseDate languageOfPerformance
             images { url width height }
             album { id title images { url width height } }
             contributingArtists { edges { node { id name } role } }
@@ -40,7 +40,7 @@ public static class AmazonMusicOperations
           album(id: $id) {
             id
             tracks {
-              id title shortTitle releaseDate
+              id title shortTitle duration trackNumber releaseDate
               images { url }
               contributingArtists { edges { node { id name } role } }
             }

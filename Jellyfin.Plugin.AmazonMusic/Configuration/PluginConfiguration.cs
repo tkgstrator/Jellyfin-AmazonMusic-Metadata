@@ -44,8 +44,6 @@ public class PluginConfiguration : BasePluginConfiguration
     public PluginConfiguration()
     {
         Marketplaces = MarketplacePriority.JapanThenUnitedStates;
-        LanguageOverride = string.Empty;
-        MaxSearchResults = 25;
         RequestTimeoutSeconds = 30;
         RequestIntervalMilliseconds = 1000;
         EnableCache = true;
@@ -59,18 +57,6 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the marketplace query order.
     /// </summary>
     public MarketplacePriority Marketplaces { get; set; }
-
-    /// <summary>
-    /// Gets or sets an explicit Amazon Music locale
-    /// such as <c>ja_JP</c> or <c>en_US</c>. When empty, the language is
-    /// derived from the marketplace being queried.
-    /// </summary>
-    public string LanguageOverride { get; set; }
-
-    /// <summary>
-    /// Gets or sets the maximum number of search results requested per query.
-    /// </summary>
-    public int MaxSearchResults { get; set; }
 
     /// <summary>
     /// Gets or sets the per-request timeout in seconds for catalog calls.
@@ -137,8 +123,6 @@ public class PluginConfiguration : BasePluginConfiguration
         return new CatalogOptions
         {
             Marketplaces = GetMarketplaceOrder(),
-            LanguageOverride = LanguageOverride,
-            MaxSearchResults = MaxSearchResults,
         };
     }
 

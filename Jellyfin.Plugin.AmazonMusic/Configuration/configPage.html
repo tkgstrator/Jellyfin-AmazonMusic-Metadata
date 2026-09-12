@@ -22,26 +22,11 @@
                         </select>
                         <div class="fieldDescription">
                             Marketplaces are tried in order until a match is found. The Amazon Music locale
-                            follows the marketplace (<code>jp</code> &rarr; <code>ja_JP</code>,
-                            <code>us</code> &rarr; <code>en_US</code>) unless overridden below.
-                        </div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="LanguageOverride">Language override</label>
-                        <input id="LanguageOverride" name="LanguageOverride" type="text" is="emby-input"
-                               placeholder="ja_JP" />
-                        <div class="fieldDescription">
-                            Optional. Forces the Amazon Music locale for every marketplace.
-                            Leave empty to derive it from the marketplace.
+                            follows the selected marketplace.
                         </div>
                     </div>
 
                     <h2>Requests</h2>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="MaxSearchResults">Max search results</label>
-                        <input id="MaxSearchResults" name="MaxSearchResults" type="number" is="emby-input"
-                               min="1" max="100" />
-                    </div>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="RequestTimeoutSeconds">
                             Request timeout (seconds)
@@ -141,8 +126,6 @@
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(AmazonMusicConfig.pluginUniqueId).then((config) => {
                         document.querySelector('#Marketplaces').value = config.Marketplaces;
-                        document.querySelector('#LanguageOverride').value = config.LanguageOverride;
-                        document.querySelector('#MaxSearchResults').value = config.MaxSearchResults;
                         document.querySelector('#RequestTimeoutSeconds').value = config.RequestTimeoutSeconds;
                         document.querySelector('#RequestIntervalMilliseconds').value =
                             config.RequestIntervalMilliseconds;
@@ -162,8 +145,6 @@
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(AmazonMusicConfig.pluginUniqueId).then((config) => {
                         config.Marketplaces = document.querySelector('#Marketplaces').value;
-                        config.LanguageOverride = document.querySelector('#LanguageOverride').value;
-                        config.MaxSearchResults = parseInt(document.querySelector('#MaxSearchResults').value, 10);
                         config.RequestTimeoutSeconds = parseInt(
                             document.querySelector('#RequestTimeoutSeconds').value, 10);
                         config.RequestIntervalMilliseconds = parseInt(

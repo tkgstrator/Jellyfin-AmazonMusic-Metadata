@@ -64,6 +64,11 @@ public class CachingCatalogTransport : ICatalogTransport
         try
         {
             var body = await _inner.SendAsync(request, cancellationToken);
+            if (body is not null)
+            {
+                request.ValidateResponse?.Invoke(body);
+            }
+
             await _cache.SetAsync(request.CacheKey, body, cancellationToken);
             completion.SetResult(body);
             return body;

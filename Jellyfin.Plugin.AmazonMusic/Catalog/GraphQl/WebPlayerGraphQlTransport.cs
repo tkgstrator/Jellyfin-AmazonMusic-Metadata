@@ -45,7 +45,7 @@ public sealed class WebPlayerGraphQlTransport : ICatalogTransport
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             response.Dispose();
-            bootstrap = await _bootstrapProvider.GetAsync(request.Marketplace, true, cancellationToken);
+            bootstrap = await _bootstrapProvider.RefreshAsync(request.Marketplace, bootstrap, cancellationToken);
             response = await SendOnceAsync(request, bootstrap, cancellationToken);
         }
 

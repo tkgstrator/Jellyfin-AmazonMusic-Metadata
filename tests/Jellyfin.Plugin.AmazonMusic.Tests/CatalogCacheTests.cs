@@ -302,6 +302,27 @@ public sealed class CatalogCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task Transport_DoesNotCacheAResponseRejectedByItsValidator()
+    {
+        var inner = new CountingTransport("{\"errors\":[{\"message\":\"failed\"}]}");
+        var transport = NewTransport(inner);
+        var request = new CatalogRequest(
+            HttpMethod.Post,
+            "/",
+            "{}",
+            "jp:album:1",
+            CatalogRequestKind.Lookup,
+            validateResponse: CatalogResponseValidator.ValidateGraphQl);
+
+        await Assert.ThrowsAsync<Jellyfin.Plugin.AmazonMusic.Catalog.Parsing.CatalogProtocolException>(
+            () => transport.SendAsync(request, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<Jellyfin.Plugin.AmazonMusic.Catalog.Parsing.CatalogProtocolException>(
+            () => transport.SendAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
     public async Task Transport_PropagatesRateLimitingToJoinedLookups()
     {
         var inner = new FlakyTransport(failures: 1, body: null, delay: TimeSpan.FromMilliseconds(100));

@@ -36,7 +36,14 @@ public static class GraphQlRequestBuilder
             CatalogJson.Options);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body))).ToLowerInvariant();
         var cacheKey = $"graphql:v1:{marketplace}:{operationName}:{hash}";
-        return new CatalogRequest(HttpMethod.Post, "/", body, cacheKey, kind, marketplace);
+        return new CatalogRequest(
+            HttpMethod.Post,
+            "/",
+            body,
+            cacheKey,
+            kind,
+            marketplace,
+            CatalogResponseValidator.ValidateGraphQl);
     }
 
     private sealed record GraphQlEnvelope(string OperationName, object Variables, string Query);

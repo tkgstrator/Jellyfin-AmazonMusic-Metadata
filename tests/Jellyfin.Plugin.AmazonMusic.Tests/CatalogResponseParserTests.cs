@@ -20,6 +20,7 @@ public class CatalogResponseParserTests
         Assert.Single(songs);
         Assert.Equal("B000000003", songs[0].Id);
         Assert.Equal("B000000002", songs[0].Attributes.AlbumId);
+        Assert.Null(songs[0].Attributes.AlbumName);
         Assert.Single(albums);
         Assert.Equal("B000000002", albums[0].Id);
         Assert.Single(artists);
@@ -38,12 +39,13 @@ public class CatalogResponseParserTests
             {"data":{"album":{"id":"B000000002","title":"Album","trackCount":2,"images":[],"contributingArtists":{"edges":[]}}}}
             """;
         const string tracks = """
-            {"data":{"album":{"id":"B000000002","tracks":[{"id":"B000000004","title":"First"},{"id":"B000000003","title":"Second"}]}}}
+            {"data":{"album":{"id":"B000000002","tracks":[{"id":"B000000004","title":"First","trackNumber":1},{"id":"B000000003","title":"Second","trackNumber":1}]}}}
             """;
 
         var album = CatalogResponseParser.ParseAlbum(metadata, tracks, "jp");
 
         Assert.NotNull(album);
         Assert.Equal(["B000000004", "B000000003"], album.Tracks.Select(track => track.Id));
+        Assert.Equal([1, 1], album.Tracks.Select(track => track.Attributes.TrackNumber));
     }
 }

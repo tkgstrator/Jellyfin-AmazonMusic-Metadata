@@ -12,20 +12,17 @@ namespace Jellyfin.Plugin.AmazonMusic.Catalog.Throttling;
 /// <remarks>
 /// <para>
 /// A library scan hands every track to the providers in parallel, so without
-/// this the plugin fires as many searches at once as the server has cores.
-/// amp-api limits the search endpoint per IP address, reports neither the
-/// quota nor a Retry-After, and keeps refusing for a long time once tripped —
-/// so the only safe policy is to never burst in the first place.
+/// this the plugin sends a burst of catalog requests. Requests are serialized
+/// and spaced out to avoid overwhelming the Web Player services.
 /// </para>
 /// <para>
 /// One request at a time, at least <see cref="ThrottleOptions.MinInterval"/>
 /// apart. A 429 pauses requests of the same kind — search, or id lookup —
 /// for a cooldown that doubles on each consecutive refusal; the refused
 /// request is retried after the pause, up to
-/// <see cref="ThrottleOptions.MaxAttempts"/> times. The two kinds are paused
-/// separately because Apple has been observed refusing searches for hours
-/// while still answering id lookups, and a tagged library needs only the
-/// latter. Once the cooldown has hit
+/// <see cref="ThrottleOptions.MaxAttempts"/> times. Search and id lookups use
+/// separate pauses so one unavailable service does not stop the other. Once
+/// the cooldown has hit
 /// its ceiling the catalog is clearly refusing for a while, so lookups that
 /// arrive during the pause fail immediately instead of queueing for minutes —
 /// the scan then finishes without those items and a later refresh fills them
@@ -79,22 +76,22 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
         => _gate.Dispose();
 
     /// <inheritdoc />
-    public async Task<string?> GetAsync(string relativeUrl, CancellationToken cancellationToken)
+    public async Task<string?> SendAsync(CatalogRequest request, CancellationToken cancellationToken)
     {
         var options = _options();
-        var kind = IsSearch(relativeUrl) ? "search" : "lookup";
-        var pause = IsSearch(relativeUrl) ? _searchPause : _lookupPause;
+        var kind = request.Kind == CatalogRequestKind.Search ? "search" : "lookup";
+        var pause = request.Kind == CatalogRequestKind.Search ? _searchPause : _lookupPause;
 
         for (var attempt = 1; ; attempt++)
         {
             await _gate.WaitAsync(cancellationToken);
             try
             {
-                await WaitForSlotAsync(options, pause, relativeUrl, cancellationToken);
+                await WaitForSlotAsync(options, pause, request.CacheKey, cancellationToken);
 
                 try
                 {
-                    var body = await _inner.GetAsync(relativeUrl, cancellationToken);
+                    var body = await _inner.SendAsync(request, cancellationToken);
                     pause.Cooldown = TimeSpan.Zero;
                     _nextSlot = _time.GetUtcNow() + options.MinInterval;
                     return body;
@@ -109,8 +106,8 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
                     if (attempt >= options.MaxAttempts)
                     {
                         _logger.LogWarning(
-                            "Amazon Music kept refusing {Url} after {Attempts} attempts; giving up on it and pausing {Kind} requests for {Cooldown}",
-                            relativeUrl,
+                            "Amazon Music kept refusing {CacheKey} after {Attempts} attempts; giving up on it and pausing {Kind} requests for {Cooldown}",
+                            request.CacheKey,
                             attempt,
                             kind,
                             pause.Cooldown);
@@ -118,8 +115,8 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
                     }
 
                     _logger.LogWarning(
-                        "Amazon Music rate limited {Url}; pausing {Kind} requests for {Cooldown} before attempt {Next}",
-                        relativeUrl,
+                        "Amazon Music rate limited {CacheKey}; pausing {Kind} requests for {Cooldown} before attempt {Next}",
+                        request.CacheKey,
                         kind,
                         pause.Cooldown,
                         attempt + 1);
@@ -131,9 +128,6 @@ public sealed class ThrottledCatalogTransport : ICatalogTransport, IDisposable
             }
         }
     }
-
-    private static bool IsSearch(string relativeUrl)
-        => relativeUrl.Contains("/search?", StringComparison.Ordinal);
 
     private static TimeSpan Min(TimeSpan left, TimeSpan right)
         => left < right ? left : right;

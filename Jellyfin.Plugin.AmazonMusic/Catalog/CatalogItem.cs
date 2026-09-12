@@ -49,13 +49,7 @@ public class CatalogItem<TAttributes>
     public IReadOnlyList<string> AlbumIds { get; init; } = [];
 
     /// <summary>
-    /// Gets the ids of the album's tracks, in order. Populated by album id
-    /// lookups only.
+    /// Gets the album's tracks, in order. Populated by album id lookups only.
     /// </summary>
-    /// <remarks>
-    /// Ids rather than whole items: what an Amazon Music track response looks
-    /// like is not settled yet, and the identifiers are enough to resolve a
-    /// track without searching.
-    /// </remarks>
-    public IReadOnlyList<string> TrackIds { get; init; } = [];
+    public IReadOnlyList<CatalogItem<Models.SongAttributes>> Tracks { get; init; } = [];
 }

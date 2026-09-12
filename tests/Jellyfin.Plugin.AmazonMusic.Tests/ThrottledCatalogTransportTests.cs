@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.AmazonMusic.Catalog;
@@ -13,13 +14,13 @@ namespace Jellyfin.Plugin.AmazonMusic.Tests;
 public class ThrottledCatalogTransportTests
 {
     [Fact]
-    public async Task GetAsync_SendsOneRequestAtATime()
+    public async Task SendAsync_SendsOneRequestAtATime()
     {
         var inner = new ScriptedTransport(delay: TimeSpan.FromMilliseconds(30));
         using var transport = Build(inner, new ThrottleOptions { MinInterval = TimeSpan.Zero });
 
         var lookups = Enumerable.Range(0, 5)
-            .Select(i => transport.GetAsync($"/v1/{i}", TestContext.Current.CancellationToken));
+            .Select(i => transport.SendAsync(Request($"/v1/{i}"), TestContext.Current.CancellationToken));
         await Task.WhenAll(lookups);
 
         Assert.Equal(1, inner.MaxConcurrency);
@@ -27,22 +28,22 @@ public class ThrottledCatalogTransportTests
     }
 
     [Fact]
-    public async Task GetAsync_SpacesRequestsByTheMinimumInterval()
+    public async Task SendAsync_SpacesRequestsByTheMinimumInterval()
     {
         var interval = TimeSpan.FromMilliseconds(80);
         var inner = new ScriptedTransport();
         using var transport = Build(inner, new ThrottleOptions { MinInterval = interval });
 
-        await transport.GetAsync("/v1/a", TestContext.Current.CancellationToken);
-        await transport.GetAsync("/v1/b", TestContext.Current.CancellationToken);
-        await transport.GetAsync("/v1/c", TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("/v1/a"), TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("/v1/b"), TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("/v1/c"), TestContext.Current.CancellationToken);
 
         var gaps = inner.Starts.Zip(inner.Starts.Skip(1), (earlier, later) => later - earlier);
         Assert.All(gaps, gap => Assert.True(gap >= interval - TimeSpan.FromMilliseconds(15), $"gap {gap} shorter than {interval}"));
     }
 
     [Fact]
-    public async Task GetAsync_RetriesAfterTheCooldownWhenRateLimited()
+    public async Task SendAsync_RetriesAfterTheCooldownWhenRateLimited()
     {
         var inner = new ScriptedTransport(rateLimitedCalls: 1);
         using var transport = Build(inner, new ThrottleOptions
@@ -52,7 +53,7 @@ public class ThrottledCatalogTransportTests
             MaxAttempts = 3,
         });
 
-        var body = await transport.GetAsync("/v1/a", TestContext.Current.CancellationToken);
+        var body = await transport.SendAsync(Request("/v1/a"), TestContext.Current.CancellationToken);
 
         Assert.Equal("ok", body);
         Assert.Equal(2, inner.Calls);
@@ -60,7 +61,7 @@ public class ThrottledCatalogTransportTests
     }
 
     [Fact]
-    public async Task GetAsync_GivesUpAfterTheConfiguredAttempts()
+    public async Task SendAsync_GivesUpAfterTheConfiguredAttempts()
     {
         var inner = new ScriptedTransport(rateLimitedCalls: int.MaxValue);
         using var transport = Build(inner, new ThrottleOptions
@@ -72,14 +73,14 @@ public class ThrottledCatalogTransportTests
         });
 
         await Assert.ThrowsAsync<CatalogRateLimitedException>(
-            () => transport.GetAsync("/v1/a", TestContext.Current.CancellationToken));
+            () => transport.SendAsync(Request("/v1/a"), TestContext.Current.CancellationToken));
 
         Assert.Equal(3, inner.Calls);
         Assert.True(transport.IsCoolingDown);
     }
 
     [Fact]
-    public async Task GetAsync_PausesOtherLookupsDuringTheCooldown()
+    public async Task SendAsync_PausesOtherLookupsDuringTheCooldown()
     {
         var inner = new ScriptedTransport(rateLimitedCalls: 1);
         using var transport = Build(inner, new ThrottleOptions
@@ -89,18 +90,17 @@ public class ThrottledCatalogTransportTests
             MaxAttempts = 2,
         });
 
-        var first = transport.GetAsync("/v1/a", TestContext.Current.CancellationToken);
+        var first = transport.SendAsync(Request("/v1/a"), TestContext.Current.CancellationToken);
         await inner.FirstCallStarted.Task;
-        var second = transport.GetAsync("/v1/b", TestContext.Current.CancellationToken);
+        var second = transport.SendAsync(Request("/v1/b"), TestContext.Current.CancellationToken);
         await Task.WhenAll(first, second);
 
-        // The retry of /v1/a and the fresh /v1/b both had to wait out the pause.
         Assert.Equal(3, inner.Calls);
         Assert.All(inner.Starts.Skip(1), start => Assert.True(start - inner.Starts[0] >= TimeSpan.FromMilliseconds(65)));
     }
 
     [Fact]
-    public async Task GetAsync_FailsFastWhileTheCatalogKeepsRefusing()
+    public async Task SendAsync_FailsFastWhileTheCatalogKeepsRefusing()
     {
         var inner = new ScriptedTransport(rateLimitedCalls: int.MaxValue);
         using var transport = Build(inner, new ThrottleOptions
@@ -112,19 +112,18 @@ public class ThrottledCatalogTransportTests
         });
 
         await Assert.ThrowsAsync<CatalogRateLimitedException>(
-            () => transport.GetAsync("/v1/a", TestContext.Current.CancellationToken));
+            () => transport.SendAsync(Request("/v1/a"), TestContext.Current.CancellationToken));
 
-        // The cooldown is at its ceiling, so this must not wait ten seconds.
         var started = DateTimeOffset.UtcNow;
         await Assert.ThrowsAsync<CatalogRateLimitedException>(
-            () => transport.GetAsync("/v1/b", TestContext.Current.CancellationToken));
+            () => transport.SendAsync(Request("/v1/b"), TestContext.Current.CancellationToken));
 
         Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(2));
         Assert.Equal(1, inner.Calls);
     }
 
     [Fact]
-    public async Task GetAsync_ResetsTheCooldownAfterASuccess()
+    public async Task SendAsync_ResetsTheCooldownAfterASuccess()
     {
         var inner = new ScriptedTransport(rateLimitedCalls: 1);
         using var transport = Build(inner, new ThrottleOptions
@@ -134,15 +133,15 @@ public class ThrottledCatalogTransportTests
             MaxAttempts = 2,
         });
 
-        await transport.GetAsync("/v1/a", TestContext.Current.CancellationToken);
+        await transport.SendAsync(Request("/v1/a"), TestContext.Current.CancellationToken);
 
         Assert.False(transport.IsCoolingDown);
     }
 
     [Fact]
-    public async Task GetAsync_DoesNotLetASearchCooldownBlockIdLookups()
+    public async Task SendAsync_DoesNotLetASearchCooldownBlockIdLookups()
     {
-        var inner = new ScriptedTransport(rateLimitedCalls: int.MaxValue, refuseOnly: "/search?");
+        var inner = new ScriptedTransport(rateLimitedCalls: int.MaxValue, refusedKind: CatalogRequestKind.Search);
         using var transport = Build(inner, new ThrottleOptions
         {
             MinInterval = TimeSpan.Zero,
@@ -152,13 +151,16 @@ public class ThrottledCatalogTransportTests
         });
 
         await Assert.ThrowsAsync<CatalogRateLimitedException>(
-            () => transport.GetAsync("/v1/catalog/jp/search?term=x", TestContext.Current.CancellationToken));
+            () => transport.SendAsync(Request("/graphql/search", CatalogRequestKind.Search), TestContext.Current.CancellationToken));
 
         var started = DateTimeOffset.UtcNow;
-        Assert.Equal("ok", await transport.GetAsync("/v1/catalog/jp/albums/1", TestContext.Current.CancellationToken));
+        Assert.Equal("ok", await transport.SendAsync(Request("/graphql/lookup"), TestContext.Current.CancellationToken));
         Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(2));
-        Assert.True(transport.IsCoolingDown); // the search side is still paused
+        Assert.True(transport.IsCoolingDown);
     }
+
+    private static CatalogRequest Request(string relativeUrl, CatalogRequestKind kind = CatalogRequestKind.Lookup)
+        => new(HttpMethod.Post, relativeUrl, "{}", relativeUrl, kind);
 
     private static ThrottledCatalogTransport Build(ICatalogTransport inner, ThrottleOptions options)
         => new(inner, () => options, NullLogger<ThrottledCatalogTransport>.Instance);
@@ -167,16 +169,15 @@ public class ThrottledCatalogTransportTests
     {
         private readonly TimeSpan _delay;
         private readonly object _lock = new();
+        private readonly CatalogRequestKind? _refusedKind;
         private int _rateLimitedCalls;
         private int _inFlight;
 
-        private readonly string? _refuseOnly;
-
-        public ScriptedTransport(TimeSpan delay = default, int rateLimitedCalls = 0, string? refuseOnly = null)
+        public ScriptedTransport(TimeSpan delay = default, int rateLimitedCalls = 0, CatalogRequestKind? refusedKind = null)
         {
             _delay = delay;
             _rateLimitedCalls = rateLimitedCalls;
-            _refuseOnly = refuseOnly;
+            _refusedKind = refusedKind;
         }
 
         public int Calls => Starts.Count;
@@ -187,7 +188,7 @@ public class ThrottledCatalogTransportTests
 
         public TaskCompletionSource FirstCallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async Task<string?> GetAsync(string relativeUrl, CancellationToken cancellationToken)
+        public async Task<string?> SendAsync(CatalogRequest request, CancellationToken cancellationToken)
         {
             bool refuse;
             lock (_lock)
@@ -195,7 +196,7 @@ public class ThrottledCatalogTransportTests
                 Starts.Add(DateTimeOffset.UtcNow);
                 _inFlight++;
                 MaxConcurrency = Math.Max(MaxConcurrency, _inFlight);
-                refuse = _rateLimitedCalls > 0 && (_refuseOnly is null || relativeUrl.Contains(_refuseOnly, StringComparison.Ordinal));
+                refuse = _rateLimitedCalls > 0 && (_refusedKind is null || request.Kind == _refusedKind);
                 if (refuse)
                 {
                     _rateLimitedCalls--;

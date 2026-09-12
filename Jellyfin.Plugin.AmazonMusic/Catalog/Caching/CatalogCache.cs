@@ -131,6 +131,20 @@ public sealed class CatalogCache : ICatalogCache
     }
 
     /// <inheritdoc />
+    public void Remove(string key)
+    {
+        lock (_gate)
+        {
+            if (_index.TryGetValue(key, out var node))
+            {
+                Remove(node);
+            }
+        }
+
+        TryDelete(PathFor(key));
+    }
+
+    /// <inheritdoc />
     public void Clear()
     {
         lock (_gate)

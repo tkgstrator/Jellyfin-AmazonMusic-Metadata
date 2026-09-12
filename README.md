@@ -9,8 +9,14 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## 現状
 
-**カタログへの到達手段が未確定のため、まだメタデータは取得しない。** この初期
-コミットで入っているのは、Apple Music 版で実運用に耐えた足場だけ。
+Amazon Music の公開 Web Player が使う匿名カタログ経路を利用する。2026-09-12の
+ブラウザ実測により、desktop Webの検索は`showSearch` BFFへ送られ、詳細取得は匿名GraphQLを
+使うことを確認した。調査記録は[docs/web-player-graphql.md](docs/web-player-graphql.md)に
+まとめている。
+
+この経路は公開 API ではなく Web Player の内部実装である。JPでは検索と、曲・アルバム・
+アーティストのID引きをlive testで確認済み。Amazonアカウントやaccount Cookie/tokenを
+要求する方式は採用しない。
 
 | 層 | 状態 |
 | --- | --- |
@@ -18,28 +24,27 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 | 外部 ID（曲・アルバム・アーティスト・マーケットプレイス） | 動く |
 | 応答キャッシュ（メモリ上限つき LRU + ディスク永続化 + 同時リクエストの束ね） | 動く |
 | スロットル（直列化・間隔・429 のクールダウン） | 動く |
-| `ICatalogTransport`（生 JSON を返す契約） | 定義済み |
-| `IAmazonMusicCatalog`（検索と ID 引きの契約） | 定義済み・型引数は未確定 |
-| **ネットワーク transport** | **未着手** |
-| DTO（応答スキーマ） | 未着手 |
-| メタデータ / 画像プロバイダ | 未着手 |
+| `ICatalogTransport`（生 JSON を返す契約） | POST 対応済み |
+| `IAmazonMusicCatalog`（検索と ID 引きの契約） | 実装済み |
+| 匿名 Web Player bootstrap / GraphQL transport | 実装済み・JPの曲/アルバム/アーティストID引きをlive確認済み |
+| 匿名検索 | desktop `showSearch` BFF経路を実装済み・live確認済み |
+| DTO / parser | operation単位で実装済み |
+| メタデータ / 画像プロバイダ | 曲・アルバム・アーティスト、アルバム/アーティスト画像を実装済み |
 
-## 最初に決めること
+## カタログ取得方針
 
-**Amazon Music には Apple の `amp-api` に相当する公開カタログ API が無い。**
-Apple Music 版は `music.apple.com` の JS バンドルから Web プレイヤー用トークンを
-取り出して公式 JSON API を叩く方式で成立したが、Amazon で同じ手が使えるかは
-未調査。少なくとも次のどれを採るかを決めないと先に進めない。
+Web Player の guest config と公開 JavaScript bundle から、その時点の endpoint、app
+version、device type、匿名 application key を実行時に取得し、詳細取得用の Apollo GraphQL
+を呼ぶ。JPでは曲・アルバム・アーティストの詳細取得とアルバム収録曲をlive確認済みで、アーティストは
+匿名で許可されたID・名前・画像だけを使う。application key の実値はソース、設定、fixture、ログへ保存しない。
 
-1. **Amazon Music の Web プレイヤーが使う内部 API** — 認証方式・安定性・利用条件を
-   実測する必要がある。
-2. **自前バックエンド経由** — 資格情報をプラグインに持たせず中継する。Apple 版の
-   [docs/backend.md](docs/backend.md) と同じ契約に寄せられる。
-3. **Product Advertising API** — 商品情報としては引けるが、アルバムのトラック一覧や
-   アーティストの経歴が取れるかは要確認。アソシエイト登録も要る。
+desktop Webの検索は`showSearch` BFFへ送る。検索語、guest session、device、CSRFなどの
+Web Player contextは観測済みの二重JSON形式でrequest bodyへ格納するが、runtime値をcacheや
+ログへ残さない。詳細取得は匿名GraphQLを使う。アートワークURLはサイズ置換せずopaqueな値として
+Jellyfinへ渡し、IDとmarketplaceを必ず対で保存する。
 
-決まったら `ICatalogTransport` の実装を 1 つ足し、`PluginServiceRegistrator.Compose`
-に渡せば、キャッシュとスロットルはそのまま効く。
+内部 API の変更や利用条件には注意が必要である。fixture ベースの unit test に加えて、
+通常 CI から除外した live test で bundle と schema の変更を検出する。
 
 ## ビルド・テスト
 
@@ -58,9 +63,7 @@ ABI ごとに別 zip で出す。
 | 設定 | 意味 |
 | --- | --- |
 | Marketplaces | 問い合わせるマーケットプレイスの順（既定 `jp` → `us`） |
-| Language override | 言語タグの上書き。既定はマーケットプレイスに追従 |
-| Max search results | 検索の取得件数 |
-| Artwork size | アートワークの一辺（px） |
+| Request timeout | カタログ呼び出しのタイムアウト（秒） |
 | Request interval | リクエストの最小間隔（ミリ秒） |
 | Cache | 有効・寿命・メモリ上限・ディスクに書く上限サイズ |
 

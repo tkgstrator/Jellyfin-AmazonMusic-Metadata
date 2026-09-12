@@ -15,15 +15,23 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 利用者向けの説明は [README.md](README.md)、バックエンドの契約は
 [docs/backend.md](docs/backend.md)、開発手順は [docs/development.md](docs/development.md)。
 
-## 最大の未確定事項
+## カタログ取得方式
 
-**Amazon Music には Apple の `amp-api` に相当する公開カタログ API が無い。**
-これが決まるまでメタデータ取得は実装できない。`ICatalogTransport` の実装が
-1 つも無いのはそのため。選択肢と論点は README にまとめてある。
+**公開Web Playerの匿名API経路を使う。** JPでは2026-09-11の実通信で曲・アルバム・
+アーティストの詳細とアルバム収録曲をGraphQLから取得できた。`album.tracks`はconnectionではなく
+Trackの配列で、アーティストは`followerCount`・`biography`・`tracks`が匿名では権限エラーになる。
+desktop Webの検索は2026-09-12のブラウザ実測で`showSearch` BFFへ送られることを確認した。
+検索responseもlive確認済みである。実測と制約は
+[docs/web-player-graphql.md](docs/web-player-graphql.md) に記録する。
 
-**勝手に方式を決めて実装しないこと。** 実測して人間に確認を取る。特に、
-Web ページの HTML スクレイピングは採らない（Apple 版で明示的に排除した方針。
-DOM 構造の変化と地域依存に弱く、US 固定になりがち）。
+公開 API の契約ではないため、bootstrap、transport、operation 固有 parser を分離し、opt-in
+live test で変更を検出する。Amazon アカウント、account Cookie/token、再生用 token は扱わない。
+匿名 application key の実値をソース、設定、fixture、cache key、例外、ログへ保存しない。
+
+WebページのHTML DOMをメタデータ源としてスクレイピングしない。entry HTMLはbundle URLの
+discoveryだけに使い、カタログデータはAPI responseから取得する。検索はdesktop Webの
+`showSearch` BFFとして実装し、GraphQLやmobile用Tenzing RESTと混同しない。ID引きはlive確認済みの
+GraphQL operationとfieldだけをproviderへ接続する。
 
 ## 決定済みの設計（勝手に変えない）
 
@@ -32,11 +40,14 @@ DOM 構造の変化と地域依存に弱く、US 固定になりがち）。
    アートワーク URL 生成は全方式で共有する。
 2. **マーケットプレイスは優先順＋フォールバック。** 設定の順（既定 `jp` → `us`）で
    問い合わせ、見つからなければ次へ。言語はマーケットプレイスに追従。設定で上書き可。
-3. **マルチターゲット。** `net9.0` = Jellyfin 10.11 ABI、`net10.0` = Jellyfin 12.0 ABI。
+   GraphQL error、壊れた応答、401/403/429 を「見つからない」に変換して次へ進まない。
+3. **アートワーク URL は opaque。** GraphQL が返した URL を加工しない。検索 converter が
+   width/height を後付けする場合があるため、寸法をサーバー実測値とはみなさない。
+4. **マルチターゲット。** `net9.0` = Jellyfin 10.11 ABI、`net10.0` = Jellyfin 12.0 ABI。
    両方をビルドし、リリースは ABI ごとに別 zip。
-4. **リリース成果物は `scripts/package.sh` が作る。** jprm / `build.yaml` は使わない。
+5. **リリース成果物は `scripts/package.sh` が作る。** jprm / `build.yaml` は使わない。
    メタ情報は `scripts/meta.template.json` が単一の出所。
-5. **UI 文言（設定画面）は英語。** README / docs / コミットメッセージ本文は日本語でよい。
+6. **UI 文言（設定画面）は英語。** README / docs / コミットメッセージ本文は日本語でよい。
 
 ## リポジトリ構造
 

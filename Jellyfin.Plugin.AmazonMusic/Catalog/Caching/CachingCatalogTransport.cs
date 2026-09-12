@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.AmazonMusic.Catalog.Parsing;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AmazonMusic.Catalog.Caching;
@@ -40,13 +41,30 @@ public class CachingCatalogTransport : ICatalogTransport
     }
 
     /// <inheritdoc />
-    public async Task<string?> GetAsync(string relativeUrl, CancellationToken cancellationToken)
+    public async Task<string?> SendAsync(CatalogRequest request, CancellationToken cancellationToken)
     {
-        var cached = await _cache.GetAsync(relativeUrl, cancellationToken);
+        var cached = await _cache.GetAsync(request.CacheKey, cancellationToken);
         if (cached is not null)
         {
-            _logger.LogDebug("Cache hit for {Url}", relativeUrl);
-            return cached.Body;
+            if (cached.Body is not null)
+            {
+                try
+                {
+                    request.ValidateResponse?.Invoke(cached.Body);
+                }
+                catch (CatalogProtocolException)
+                {
+                    _logger.LogDebug("Discarding an invalid cached response for {CacheKey}", request.CacheKey);
+                    _cache.Remove(request.CacheKey);
+                    cached = null;
+                }
+            }
+
+            if (cached is not null)
+            {
+                _logger.LogDebug("Cache hit for {CacheKey}", request.CacheKey);
+                return cached.Body;
+            }
         }
 
         // Publish the placeholder BEFORE fetching. Registering the task the
@@ -54,17 +72,22 @@ public class CachingCatalogTransport : ICatalogTransport
         // remove its entry before GetOrAdd had inserted it, leaving a finished
         // task in the map forever.
         var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var existing = _inFlight.GetOrAdd(relativeUrl, completion.Task);
+        var existing = _inFlight.GetOrAdd(request.CacheKey, completion.Task);
         if (!ReferenceEquals(existing, completion.Task))
         {
-            _logger.LogDebug("Joining an in-flight lookup for {Url}", relativeUrl);
+            _logger.LogDebug("Joining an in-flight lookup for {CacheKey}", request.CacheKey);
             return await existing;
         }
 
         try
         {
-            var body = await _inner.GetAsync(relativeUrl, cancellationToken);
-            await _cache.SetAsync(relativeUrl, body, cancellationToken);
+            var body = await _inner.SendAsync(request, cancellationToken);
+            if (body is not null)
+            {
+                request.ValidateResponse?.Invoke(body);
+            }
+
+            await _cache.SetAsync(request.CacheKey, body, cancellationToken);
             completion.SetResult(body);
             return body;
         }
@@ -75,7 +98,7 @@ public class CachingCatalogTransport : ICatalogTransport
         }
         finally
         {
-            _inFlight.TryRemove(relativeUrl, out _);
+            _inFlight.TryRemove(request.CacheKey, out _);
         }
     }
 }

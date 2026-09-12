@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Jellyfin.Plugin.AmazonMusic.Catalog.Parsing;
 using Xunit;
 
@@ -37,12 +38,12 @@ public class CatalogResponseParserTests
             {"data":{"album":{"id":"B000000002","title":"Album","trackCount":2,"images":[],"contributingArtists":{"edges":[]}}}}
             """;
         const string tracks = """
-            {"data":{"album":{"id":"B000000002","tracks":[{"id":"B000000004"},{"id":"B000000003"}]}}}
+            {"data":{"album":{"id":"B000000002","tracks":[{"id":"B000000004","title":"First"},{"id":"B000000003","title":"Second"}]}}}
             """;
 
         var album = CatalogResponseParser.ParseAlbum(metadata, tracks, "jp");
 
         Assert.NotNull(album);
-        Assert.Equal(["B000000004", "B000000003"], album.TrackIds);
+        Assert.Equal(["B000000004", "B000000003"], album.Tracks.Select(track => track.Id));
     }
 }

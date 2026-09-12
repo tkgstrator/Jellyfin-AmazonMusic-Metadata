@@ -118,10 +118,12 @@ internal static class CatalogResponseParser
 
         var element = resource.Value;
         var artists = ReadArtists(element);
-        var trackIds = tracksResource.Value.TryGetProperty("tracks", out var trackArray) && trackArray.ValueKind == JsonValueKind.Array
-            ? trackArray.EnumerateArray().Select(track => RequiredString(track, "id")).ToList()
+        var albumId = RequiredString(element, "id");
+        var albumName = RequiredString(element, "title");
+        var albumTracks = tracksResource.Value.TryGetProperty("tracks", out var trackArray) && trackArray.ValueKind == JsonValueKind.Array
+            ? trackArray.EnumerateArray().Select((track, index) => ToAlbumTrack(track, marketplace, albumId, albumName, index + 1)).ToList()
             : throw new CatalogProtocolException("The album tracks response did not contain a track array.");
-        return new CatalogItem<AlbumAttributes>(RequiredString(element, "id"), marketplace, new AlbumAttributes
+        return new CatalogItem<AlbumAttributes>(albumId, marketplace, new AlbumAttributes
         {
             Name = RequiredString(element, "title"),
             Artists = artists,
@@ -132,7 +134,7 @@ internal static class CatalogResponseParser
         })
         {
             ArtistIds = artists.Where(artist => !string.IsNullOrWhiteSpace(artist.Id)).Select(artist => artist.Id!).ToList(),
-            TrackIds = trackIds,
+            Tracks = albumTracks,
         };
     }
 
@@ -300,6 +302,30 @@ internal static class CatalogResponseParser
             : value.ValueKind == JsonValueKind.Object
                 ? OptionalString(value, "text")
                 : null;
+    }
+
+    private static CatalogItem<SongAttributes> ToAlbumTrack(
+        JsonElement element,
+        string marketplace,
+        string albumId,
+        string albumName,
+        int trackNumber)
+    {
+        var artists = ReadArtists(element);
+        return new CatalogItem<SongAttributes>(RequiredString(element, "id"), marketplace, new SongAttributes
+        {
+            Name = RequiredString(element, "title"),
+            AlbumId = albumId,
+            AlbumName = albumName,
+            Artists = artists,
+            TrackNumber = trackNumber,
+            ReleaseDate = ReadDate(element),
+            Artwork = ReadArtwork(element),
+        })
+        {
+            ArtistIds = artists.Where(artist => !string.IsNullOrWhiteSpace(artist.Id)).Select(artist => artist.Id!).ToList(),
+            AlbumIds = [albumId],
+        };
     }
 
     private static IReadOnlyList<CatalogArtist> ReadArtists(JsonElement element)

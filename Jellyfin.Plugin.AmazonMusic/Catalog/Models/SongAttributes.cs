@@ -20,6 +20,12 @@ public sealed class SongAttributes
     /// <summary>Gets or initializes the album name.</summary>
     public string? AlbumName { get; init; }
 
+    /// <summary>Gets or initializes the track number.</summary>
+    public int? TrackNumber { get; init; }
+
+    /// <summary>Gets or initializes the disc number.</summary>
+    public int? DiscNumber { get; init; }
+
     /// <summary>Gets or initializes the release date.</summary>
     public DateTimeOffset? ReleaseDate { get; init; }
 

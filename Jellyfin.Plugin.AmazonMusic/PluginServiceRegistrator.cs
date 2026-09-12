@@ -1,8 +1,13 @@
+using System;
 using System.IO;
+using System.Net.Http;
 using Jellyfin.Plugin.AmazonMusic.Catalog;
 using Jellyfin.Plugin.AmazonMusic.Catalog.Caching;
+using Jellyfin.Plugin.AmazonMusic.Catalog.GraphQl;
 using Jellyfin.Plugin.AmazonMusic.Catalog.Throttling;
+using Jellyfin.Plugin.AmazonMusic.Catalog.WebPlayer;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Common.Net;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,10 +24,31 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     /// <inheritdoc />
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
+        serviceCollection.AddSingleton<WebPlayerIdentity>();
+        serviceCollection.AddSingleton<IWebPlayerBootstrapProvider>(provider => new WebPlayerBootstrapProvider(
+            CreateHttpClient(provider),
+            provider.GetRequiredService<ILogger<WebPlayerBootstrapProvider>>()));
         serviceCollection.AddSingleton<ICatalogCache>(provider => new CatalogCache(
             CacheRoot(provider.GetRequiredService<IApplicationPaths>()),
             CurrentCacheOptions,
             provider.GetRequiredService<ILogger<CatalogCache>>()));
+        serviceCollection.AddSingleton<IAmazonMusicCatalog>(provider =>
+        {
+            var bootstrap = provider.GetRequiredService<IWebPlayerBootstrapProvider>();
+            var cache = provider.GetRequiredService<ICatalogCache>();
+            var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
+            var timeout = CurrentRequestTimeout;
+            var search = Compose(new ShowSearchTransport(CreateHttpClient(provider), bootstrap, timeout), cache, loggerFactory);
+            var lookup = Compose(
+                new WebPlayerGraphQlTransport(
+                    CreateHttpClient(provider),
+                    bootstrap,
+                    provider.GetRequiredService<WebPlayerIdentity>(),
+                    timeout),
+                cache,
+                loggerFactory);
+            return new AmazonMusicCatalog(search, lookup, CurrentOptions);
+        });
     }
 
     /// <summary>
@@ -69,6 +95,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
 
     private static CatalogCacheOptions CurrentCacheOptions()
         => Plugin.Instance?.Configuration.ToCacheOptions() ?? new CatalogCacheOptions();
+
+    private static TimeSpan CurrentRequestTimeout()
+        => TimeSpan.FromSeconds(Math.Max(1, Plugin.Instance?.Configuration.RequestTimeoutSeconds ?? 30));
+
+    private static HttpClient CreateHttpClient(IServiceProvider provider)
+        => provider.GetRequiredService<IHttpClientFactory>().CreateClient(NamedClient.Default);
 
     private static string CacheRoot(IApplicationPaths paths)
         => Path.Combine(paths.CachePath, "amazon-music");

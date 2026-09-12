@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.AmazonMusic.Catalog.Parsing;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AmazonMusic.Catalog.Caching;
@@ -45,8 +46,25 @@ public class CachingCatalogTransport : ICatalogTransport
         var cached = await _cache.GetAsync(request.CacheKey, cancellationToken);
         if (cached is not null)
         {
-            _logger.LogDebug("Cache hit for {CacheKey}", request.CacheKey);
-            return cached.Body;
+            if (cached.Body is not null)
+            {
+                try
+                {
+                    request.ValidateResponse?.Invoke(cached.Body);
+                }
+                catch (CatalogProtocolException)
+                {
+                    _logger.LogDebug("Discarding an invalid cached response for {CacheKey}", request.CacheKey);
+                    _cache.Remove(request.CacheKey);
+                    cached = null;
+                }
+            }
+
+            if (cached is not null)
+            {
+                _logger.LogDebug("Cache hit for {CacheKey}", request.CacheKey);
+                return cached.Body;
+            }
         }
 
         // Publish the placeholder BEFORE fetching. Registering the task the

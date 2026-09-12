@@ -9,10 +9,11 @@ namespace Jellyfin.Plugin.AmazonMusic.Catalog;
 internal static class CatalogResponseValidator
 {
     /// <summary>
-    /// Validates a GraphQL response envelope.
+    /// Validates a GraphQL response envelope and operation root.
     /// </summary>
     /// <param name="body">Raw response body.</param>
-    public static void ValidateGraphQl(string body)
+    /// <param name="rootName">Expected field in the GraphQL data object.</param>
+    public static void ValidateGraphQl(string body, string rootName)
     {
         using var document = Parse(body);
         var root = document.RootElement;
@@ -27,6 +28,12 @@ internal static class CatalogResponseValidator
         {
             throw new CatalogProtocolException("Amazon Music returned no GraphQL data object.");
         }
+
+        if (!data.TryGetProperty(rootName, out var operationRoot)
+            || operationRoot.ValueKind is not (JsonValueKind.Object or JsonValueKind.Null))
+        {
+            throw new CatalogProtocolException($"Amazon Music returned no valid GraphQL {rootName} field.");
+        }
     }
 
     /// <summary>
@@ -40,6 +47,28 @@ internal static class CatalogResponseValidator
             || methods.ValueKind != JsonValueKind.Array)
         {
             throw new CatalogProtocolException("Amazon Music returned no search methods array.");
+        }
+
+        foreach (var method in methods.EnumerateArray())
+        {
+            if (method.ValueKind != JsonValueKind.Object
+                || !method.TryGetProperty("template", out var template)
+                || template.ValueKind != JsonValueKind.Object
+                || !template.TryGetProperty("widgets", out var widgets)
+                || widgets.ValueKind != JsonValueKind.Array)
+            {
+                throw new CatalogProtocolException("Amazon Music returned an invalid search method.");
+            }
+
+            foreach (var widget in widgets.EnumerateArray())
+            {
+                if (widget.ValueKind != JsonValueKind.Object
+                    || !widget.TryGetProperty("items", out var items)
+                    || items.ValueKind != JsonValueKind.Array)
+                {
+                    throw new CatalogProtocolException("Amazon Music returned an invalid search widget.");
+                }
+            }
         }
     }
 

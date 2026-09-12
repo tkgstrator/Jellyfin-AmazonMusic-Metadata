@@ -144,7 +144,8 @@ public sealed class AmazonMusicCatalog : IAmazonMusicCatalog
         CancellationToken cancellationToken)
     {
         var variables = variableName == "artistId" ? new { artistId = id } : (object)new { id };
-        var request = GraphQlRequestBuilder.Build(marketplace, operation, query, variables, CatalogRequestKind.Lookup);
+        var rootName = operation == "trackMetadata" ? "track" : operation == "getArtistSummary" ? "artist" : "album";
+        var request = GraphQlRequestBuilder.Build(marketplace, operation, query, variables, CatalogRequestKind.Lookup, rootName);
         return await _lookupTransport.SendAsync(request, cancellationToken);
     }
 

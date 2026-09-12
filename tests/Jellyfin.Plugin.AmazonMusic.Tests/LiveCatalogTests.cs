@@ -72,7 +72,7 @@ public class LiveCatalogTests
             new WebPlayerIdentity(),
             () => TimeSpan.FromSeconds(30));
         var variables = variableName == "artistId" ? new { artistId = id } : (object)new { id };
-        var request = GraphQlRequestBuilder.Build("jp", operationName, query, variables, CatalogRequestKind.Lookup);
+        var request = GraphQlRequestBuilder.Build("jp", operationName, query, variables, CatalogRequestKind.Lookup, rootName);
 
         var response = await transport.SendAsync(request, TestContext.Current.CancellationToken);
 

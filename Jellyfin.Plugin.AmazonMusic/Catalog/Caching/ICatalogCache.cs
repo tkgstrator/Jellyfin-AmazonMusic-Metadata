@@ -26,6 +26,12 @@ public interface ICatalogCache
     ValueTask SetAsync(string key, string? value, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Removes one entry from memory and disk.
+    /// </summary>
+    /// <param name="key">Cache key.</param>
+    void Remove(string key);
+
+    /// <summary>
     /// Removes every entry, from memory and from disk.
     /// </summary>
     void Clear();

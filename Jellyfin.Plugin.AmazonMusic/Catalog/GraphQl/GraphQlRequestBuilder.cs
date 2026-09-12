@@ -19,17 +19,20 @@ public static class GraphQlRequestBuilder
     /// <param name="query">GraphQL query document.</param>
     /// <param name="variables">Operation variables.</param>
     /// <param name="kind">Request kind.</param>
+    /// <param name="rootName">Expected field in the GraphQL data object.</param>
     /// <returns>The catalog request.</returns>
     public static CatalogRequest Build(
         string marketplace,
         string operationName,
         string query,
         object variables,
-        CatalogRequestKind kind)
+        CatalogRequestKind kind,
+        string rootName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         ArgumentNullException.ThrowIfNull(variables);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootName);
 
         var body = JsonSerializer.Serialize(
             new GraphQlEnvelope(operationName, variables, query),
@@ -43,7 +46,7 @@ public static class GraphQlRequestBuilder
             cacheKey,
             kind,
             marketplace,
-            CatalogResponseValidator.ValidateGraphQl);
+            body => CatalogResponseValidator.ValidateGraphQl(body, rootName));
     }
 
     private sealed record GraphQlEnvelope(string OperationName, object Variables, string Query);

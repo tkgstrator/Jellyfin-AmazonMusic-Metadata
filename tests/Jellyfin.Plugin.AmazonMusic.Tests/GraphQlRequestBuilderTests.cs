@@ -15,7 +15,8 @@ public class GraphQlRequestBuilderTests
             "trackMetadata",
             AmazonMusicOperations.TrackMetadata,
             new { id = "TRACK" },
-            CatalogRequestKind.Lookup);
+            CatalogRequestKind.Lookup,
+            "track");
 
         Assert.Equal("POST", request.Method.Method);
         Assert.Equal("jp", request.Marketplace);
@@ -56,5 +57,6 @@ public class GraphQlRequestBuilderTests
             "trackMetadata",
             AmazonMusicOperations.TrackMetadata,
             new { id },
-            CatalogRequestKind.Lookup);
+            CatalogRequestKind.Lookup,
+            "track");
 }

@@ -69,7 +69,7 @@ public class WebPlayerGraphQlTransportTests
         => new(new HttpClient(handler), bootstrap, new WebPlayerIdentity(), () => TimeSpan.FromSeconds(5));
 
     private static CatalogRequest Request()
-        => GraphQlRequestBuilder.Build("jp", "trackMetadata", AmazonMusicOperations.TrackMetadata, new { id = "A" }, CatalogRequestKind.Lookup);
+        => GraphQlRequestBuilder.Build("jp", "trackMetadata", AmazonMusicOperations.TrackMetadata, new { id = "A" }, CatalogRequestKind.Lookup, "track");
 
     private static HttpRequestMessage Clone(HttpRequestMessage request)
     {

@@ -312,7 +312,7 @@ public sealed class CatalogCacheTests : IDisposable
             "{}",
             "jp:album:1",
             CatalogRequestKind.Lookup,
-            validateResponse: CatalogResponseValidator.ValidateGraphQl);
+            validateResponse: body => CatalogResponseValidator.ValidateGraphQl(body, "album"));
 
         await Assert.ThrowsAsync<Jellyfin.Plugin.AmazonMusic.Catalog.Parsing.CatalogProtocolException>(
             () => transport.SendAsync(request, TestContext.Current.CancellationToken));
@@ -320,6 +320,60 @@ public sealed class CatalogCacheTests : IDisposable
             () => transport.SendAsync(request, TestContext.Current.CancellationToken));
 
         Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Transport_RejectsAnOperationResponseWithoutItsRoot()
+    {
+        var inner = new CountingTransport("{\"data\":{}}");
+        var transport = NewTransport(inner);
+        var request = new CatalogRequest(
+            HttpMethod.Post,
+            "/",
+            "{}",
+            "jp:album:1",
+            CatalogRequestKind.Lookup,
+            validateResponse: body => CatalogResponseValidator.ValidateGraphQl(body, "album"));
+
+        await Assert.ThrowsAsync<Jellyfin.Plugin.AmazonMusic.Catalog.Parsing.CatalogProtocolException>(
+            () => transport.SendAsync(request, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<Jellyfin.Plugin.AmazonMusic.Catalog.Parsing.CatalogProtocolException>(
+            () => transport.SendAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Transport_DiscardsAnInvalidCachedResponseAndRefetches()
+    {
+        var cache = NewCache();
+        await cache.SetAsync("jp:album:1", "{\"data\":{}}", TestContext.Current.CancellationToken);
+        var inner = new CountingTransport("{\"data\":{\"album\":null}}");
+        var transport = new CachingCatalogTransport(inner, cache, NullLogger<CachingCatalogTransport>.Instance);
+        var request = new CatalogRequest(
+            HttpMethod.Post,
+            "/",
+            "{}",
+            "jp:album:1",
+            CatalogRequestKind.Lookup,
+            validateResponse: body => CatalogResponseValidator.ValidateGraphQl(body, "album"));
+
+        var body = await transport.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal("{\"data\":{\"album\":null}}", body);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public void SearchValidatorRejectsMalformedNestedStructuresButAllowsEmptyResults()
+    {
+        CatalogResponseValidator.ValidateSearch("{\"methods\":[]}");
+        CatalogResponseValidator.ValidateSearch("{\"methods\":[{\"template\":{\"widgets\":[]}}]}");
+
+        Assert.Throws<Jellyfin.Plugin.AmazonMusic.Catalog.Parsing.CatalogProtocolException>(
+            () => CatalogResponseValidator.ValidateSearch("{\"methods\":[{\"template\":{\"widgets\":\"unexpected\"}}]}"));
+        Assert.Throws<Jellyfin.Plugin.AmazonMusic.Catalog.Parsing.CatalogProtocolException>(
+            () => CatalogResponseValidator.ValidateSearch("{\"methods\":[{\"template\":{\"widgets\":[{\"items\":{}}]}}]}"));
     }
 
     [Fact]

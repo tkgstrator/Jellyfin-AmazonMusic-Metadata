@@ -15,13 +15,10 @@ namespace Jellyfin.Plugin.AmazonMusic.Catalog;
 public interface ICatalogTransport
 {
     /// <summary>
-    /// Issues a GET request.
+    /// Issues a catalog request.
     /// </summary>
-    /// <param name="relativeUrl">Path and query, starting with '/'.</param>
+    /// <param name="request">Request to issue.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>
-    /// The response body, or null when the resource was not found or the
-    /// request was refused in a way the caller should treat as "no result".
-    /// </returns>
-    Task<string?> GetAsync(string relativeUrl, CancellationToken cancellationToken);
+    /// <returns>The response body, or null when the resource was not found.</returns>
+    Task<string?> SendAsync(CatalogRequest request, CancellationToken cancellationToken);
 }

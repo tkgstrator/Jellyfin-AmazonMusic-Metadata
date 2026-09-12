@@ -1,8 +1,13 @@
+using System;
 using System.IO;
+using System.Net.Http;
 using Jellyfin.Plugin.AmazonMusic.Catalog;
 using Jellyfin.Plugin.AmazonMusic.Catalog.Caching;
+using Jellyfin.Plugin.AmazonMusic.Catalog.GraphQl;
 using Jellyfin.Plugin.AmazonMusic.Catalog.Throttling;
+using Jellyfin.Plugin.AmazonMusic.Catalog.WebPlayer;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Common.Net;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,10 +24,30 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     /// <inheritdoc />
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
+        serviceCollection.AddSingleton<WebPlayerIdentity>();
+        serviceCollection.AddSingleton<IWebPlayerBootstrapProvider>(provider => new WebPlayerBootstrapProvider(
+            CreateHttpClient(provider),
+            provider.GetRequiredService<ILogger<WebPlayerBootstrapProvider>>()));
         serviceCollection.AddSingleton<ICatalogCache>(provider => new CatalogCache(
             CacheRoot(provider.GetRequiredService<IApplicationPaths>()),
             CurrentCacheOptions,
             provider.GetRequiredService<ILogger<CatalogCache>>()));
+        serviceCollection.AddSingleton<IAmazonMusicCatalog>(provider =>
+        {
+            var bootstrap = provider.GetRequiredService<IWebPlayerBootstrapProvider>();
+            var cache = provider.GetRequiredService<ICatalogCache>();
+            var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
+            var timeout = CurrentRequestTimeout;
+            var network = new CatalogTransportRouter(
+                new ShowSearchTransport(CreateHttpClient(provider), bootstrap, timeout),
+                new WebPlayerGraphQlTransport(
+                    CreateHttpClient(provider),
+                    bootstrap,
+                    provider.GetRequiredService<WebPlayerIdentity>(),
+                    timeout));
+            var transport = Compose(network, cache, loggerFactory);
+            return new AmazonMusicCatalog(transport, transport, CurrentOptions);
+        });
     }
 
     /// <summary>
@@ -33,12 +58,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     /// so hits are not paced; the throttle sits inside it so every request that
     /// really leaves the plugin is paced, including the ones a cache miss
     /// issues.
-    /// <para>
-    /// The network transport itself is the one piece still missing: how the
-    /// Amazon Music catalog is reached has not been settled (see the README).
-    /// Once it exists, register it and hand it to this method, and everything
-    /// above it works unchanged.
-    /// </para>
     /// </remarks>
     /// <param name="network">Transport that performs the actual request.</param>
     /// <param name="cache">Response cache.</param>
@@ -69,6 +88,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
 
     private static CatalogCacheOptions CurrentCacheOptions()
         => Plugin.Instance?.Configuration.ToCacheOptions() ?? new CatalogCacheOptions();
+
+    private static TimeSpan CurrentRequestTimeout()
+        => TimeSpan.FromSeconds(Math.Max(1, Plugin.Instance?.Configuration.RequestTimeoutSeconds ?? 30));
+
+    private static HttpClient CreateHttpClient(IServiceProvider provider)
+        => provider.GetRequiredService<IHttpClientFactory>().CreateClient(NamedClient.Default);
 
     private static string CacheRoot(IApplicationPaths paths)
         => Path.Combine(paths.CachePath, "amazon-music");

@@ -65,16 +65,30 @@ Debug ビルドしたうえで `$JELLYFIN_CONFIG_DIR/plugins/Jellyfin.Plugin.Ama
 1. <http://localhost:8096> にアクセス（初回はセットアップウィザード）
 2. ダッシュボード → プラグイン に `Amazon Music (JP, US)` が出ること
 3. ダッシュボード → プラグイン → Amazon Music (JP, US) で設定できること
-4. 音楽ライブラリを追加してスキャンし、アルバム/曲に Amazon Music の ID が付くこと
-5. 設定画面の **Preview moves** で移動予定が出て、**Apply moves now** で
-   `Artist-[amid-id]/Album-[amid-id]/01 Title.ext` に並ぶこと。再スキャン後のログに
-   `Searching` が出ず `Looking up ... by` だけになること
+4. 音楽ライブラリを追加してスキャンし、曲・アルバム・アーティストに Amazon Music の ID と marketplace が付くこと
+5. `[amzn-ASIN]` を含むアルバムまたはアーティストのディレクトリ名から、検索せずID引きできること
+6. アルバムとアーティストの画像URLが加工されずJellyfinへ渡ること
 
 ログ:
 
 ```bash
-docker logs -f --tail 200 applemusic-jellyfin
+docker logs -f --tail 200 amazonmusic-jellyfin
 ```
+
+## 実カタログの確認
+
+`LiveCatalogTests` は公開Web Playerへ接続するため、通常のテストではskipする。実行する場合は
+`tests/Jellyfin.Plugin.AmazonMusic.Tests/LiveCatalogTests.cs` の対象testから一時的に
+`Skip = LiveSkip` を外し、次のように1件ずつ実行する。
+
+```bash
+dotnet test -f net10.0 --filter "FullyQualifiedName~LiveCatalogTests.JapaneseGuestBootstrapMatchesTheExpectedContract"
+dotnet test -f net10.0 --filter "FullyQualifiedName~LiveCatalogTests.JapaneseGuestSearchReturnsJson"
+dotnet test -f net10.0 --filter "FullyQualifiedName~LiveCatalogTests.JapaneseGuestLookupMatchesTheExpectedSchema"
+```
+
+検索は1 request、詳細取得も必要最小限に留める。実行後は`Skip`を戻し、bundle由来のapplication
+key、device/session ID、CSRF値、raw responseをログやfixtureへ保存しない。
 
 プラグインのログを増やしたい場合は Jellyfin の `logging.json` で
 `Jellyfin.Plugin.AmazonMusic` の最小レベルを `Debug` にする。

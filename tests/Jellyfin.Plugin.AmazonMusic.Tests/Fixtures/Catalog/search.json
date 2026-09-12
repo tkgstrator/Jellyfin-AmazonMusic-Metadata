@@ -1,0 +1,44 @@
+{
+	"methods": [
+		{
+			"template": {
+				"widgets": [
+					{
+						"header": "Artists",
+						"items": [
+							{
+								"primaryText": { "text": "Example Artist" },
+								"image": "https://images.example/artist.jpg",
+								"primaryLink": { "deeplink": "/artists/B000000001/example" }
+							}
+						]
+					},
+					{
+						"header": "Songs",
+						"items": [
+							{
+								"primaryText": { "text": "Example Song" },
+								"secondaryText": "Example Artist",
+								"image": "https://images.example/song.jpg",
+								"primaryLink": {
+									"deeplink": "/albums/B000000002?trackAsin=B000000003"
+								}
+							}
+						]
+					},
+					{
+						"header": "Albums",
+						"items": [
+							{
+								"primaryText": { "text": "Example Album" },
+								"secondaryText": "Example Artist",
+								"image": "https://images.example/album.jpg",
+								"primaryLink": { "deeplink": "/albums/B000000002" }
+							}
+						]
+					}
+				]
+			}
+		}
+	]
+}

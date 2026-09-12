@@ -1,75 +1,51 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.AmazonMusic.Catalog.Models;
 
 namespace Jellyfin.Plugin.AmazonMusic.Catalog;
 
 /// <summary>
-/// Reads the Amazon Music catalog, walking the configured marketplaces until a
-/// result is found.
+/// Reads the Amazon Music catalog in configured marketplace order.
 /// </summary>
-/// <typeparam name="TSong">Song attribute payload.</typeparam>
-/// <typeparam name="TAlbum">Album attribute payload.</typeparam>
-/// <typeparam name="TArtist">Artist attribute payload.</typeparam>
-/// <remarks>
-/// The payload types are left open because the response schema is not settled
-/// yet. Fixing them is the first step once the transport exists; the shape of
-/// the calls themselves is already decided by how the providers resolve items:
-/// a stored id first, then a search as the last resort.
-/// </remarks>
-public interface IAmazonMusicCatalog<TSong, TAlbum, TArtist>
-    where TSong : class
-    where TAlbum : class
-    where TArtist : class
+public interface IAmazonMusicCatalog
 {
-    /// <summary>
-    /// Searches for songs.
-    /// </summary>
+    /// <summary>Searches for songs.</summary>
     /// <param name="term">Search term.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Matching songs; empty when nothing was found.</returns>
-    Task<IReadOnlyList<CatalogItem<TSong>>> SearchSongsAsync(string term, CancellationToken cancellationToken);
+    /// <returns>Matching songs.</returns>
+    Task<IReadOnlyList<CatalogItem<SongAttributes>>> SearchSongsAsync(string term, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Searches for albums.
-    /// </summary>
+    /// <summary>Searches for albums.</summary>
     /// <param name="term">Search term.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Matching albums; empty when nothing was found.</returns>
-    Task<IReadOnlyList<CatalogItem<TAlbum>>> SearchAlbumsAsync(string term, CancellationToken cancellationToken);
+    /// <returns>Matching albums.</returns>
+    Task<IReadOnlyList<CatalogItem<AlbumAttributes>>> SearchAlbumsAsync(string term, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Searches for artists.
-    /// </summary>
+    /// <summary>Searches for artists.</summary>
     /// <param name="term">Search term.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Matching artists; empty when nothing was found.</returns>
-    Task<IReadOnlyList<CatalogItem<TArtist>>> SearchArtistsAsync(string term, CancellationToken cancellationToken);
+    /// <returns>Matching artists.</returns>
+    Task<IReadOnlyList<CatalogItem<ArtistAttributes>>> SearchArtistsAsync(string term, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Looks a song up by catalog identifier.
-    /// </summary>
-    /// <param name="id">Amazon Music catalog identifier.</param>
-    /// <param name="marketplace">Marketplace the id belongs to; null to try the configured ones in order.</param>
+    /// <summary>Looks a song up by identifier.</summary>
+    /// <param name="id">Catalog identifier.</param>
+    /// <param name="marketplace">Owning marketplace, or null to try configured marketplaces.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The song, or null when it was not found.</returns>
-    Task<CatalogItem<TSong>?> GetSongAsync(string id, string? marketplace, CancellationToken cancellationToken);
+    /// <returns>The song, or null.</returns>
+    Task<CatalogItem<SongAttributes>?> GetSongAsync(string id, string? marketplace, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Looks an album up by catalog identifier.
-    /// </summary>
-    /// <param name="id">Amazon Music catalog identifier.</param>
-    /// <param name="marketplace">Marketplace the id belongs to; null to try the configured ones in order.</param>
+    /// <summary>Looks an album up by identifier.</summary>
+    /// <param name="id">Catalog identifier.</param>
+    /// <param name="marketplace">Owning marketplace, or null to try configured marketplaces.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The album, or null when it was not found.</returns>
-    Task<CatalogItem<TAlbum>?> GetAlbumAsync(string id, string? marketplace, CancellationToken cancellationToken);
+    /// <returns>The album, or null.</returns>
+    Task<CatalogItem<AlbumAttributes>?> GetAlbumAsync(string id, string? marketplace, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Looks an artist up by catalog identifier.
-    /// </summary>
-    /// <param name="id">Amazon Music catalog identifier.</param>
-    /// <param name="marketplace">Marketplace the id belongs to; null to try the configured ones in order.</param>
+    /// <summary>Looks an artist up by identifier.</summary>
+    /// <param name="id">Catalog identifier.</param>
+    /// <param name="marketplace">Owning marketplace, or null to try configured marketplaces.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The artist, or null when it was not found.</returns>
-    Task<CatalogItem<TArtist>?> GetArtistAsync(string id, string? marketplace, CancellationToken cancellationToken);
+    /// <returns>The artist, or null.</returns>
+    Task<CatalogItem<ArtistAttributes>?> GetArtistAsync(string id, string? marketplace, CancellationToken cancellationToken);
 }

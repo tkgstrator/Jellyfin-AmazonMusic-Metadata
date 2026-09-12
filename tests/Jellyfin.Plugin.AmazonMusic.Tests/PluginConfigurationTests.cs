@@ -18,21 +18,15 @@ public class PluginConfigurationTests
     }
 
     [Fact]
-    public void ToCatalogOptions_CarriesEverySetting()
+    public void ToCatalogOptions_CarriesMarketplaceOrder()
     {
         var config = new PluginConfiguration
         {
             Marketplaces = MarketplacePriority.UnitedStatesOnly,
-            LanguageOverride = "en-gb",
-            MaxSearchResults = 7,
-            ArtworkSize = 600,
         };
 
         var options = config.ToCatalogOptions();
 
         Assert.Equal(["us"], options.Marketplaces);
-        Assert.Equal("en-gb", options.LanguageOverride);
-        Assert.Equal(7, options.MaxSearchResults);
-        Assert.Equal(600, options.ArtworkSize);
     }
 }

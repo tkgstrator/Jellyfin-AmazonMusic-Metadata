@@ -120,6 +120,9 @@ public sealed class WebPlayerBootstrapProvider : IWebPlayerBootstrapProvider, ID
             anonymousApiKey,
             config.AppVersion,
             config.DeviceType,
+            config.DeviceId,
+            config.SessionId,
+            config.Csrf,
             _time.GetUtcNow());
     }
 

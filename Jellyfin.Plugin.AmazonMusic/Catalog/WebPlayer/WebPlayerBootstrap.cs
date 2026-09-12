@@ -12,4 +12,7 @@ public sealed record WebPlayerBootstrap(
     string AnonymousApiKey,
     string AppVersion,
     string DeviceType,
+    string DeviceId,
+    string SessionId,
+    WebPlayerCsrf Csrf,
     DateTimeOffset AcquiredAt);

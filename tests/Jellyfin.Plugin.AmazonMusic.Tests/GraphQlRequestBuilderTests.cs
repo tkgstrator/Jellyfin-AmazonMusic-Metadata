@@ -26,31 +26,6 @@ public class GraphQlRequestBuilderTests
     }
 
     [Fact]
-    public void BuildSearch_MatchesTheDesktopWebPlayerRequest()
-    {
-        var request = GraphQlRequestBuilder.BuildSearch(
-            "jp",
-            "aiko",
-            "DEVICE",
-            "DEVICE_TYPE",
-            "ja_JP",
-            "JP",
-            5);
-
-        Assert.Equal(CatalogRequestKind.Search, request.Kind);
-        using var body = JsonDocument.Parse(request.Body!);
-        var root = body.RootElement;
-        Assert.Equal("tenzingTextSearch", root.GetProperty("operationName").GetString());
-        Assert.Contains("TenzingTextSearchGqlRequest", root.GetProperty("query").GetString(), System.StringComparison.Ordinal);
-        var input = root.GetProperty("variables").GetProperty("textSearchRequest");
-        Assert.Equal("aiko", input.GetProperty("query").GetString());
-        Assert.Equal("JP", input.GetProperty("musicTerritory").GetString());
-        Assert.Equal("DEVICE", input.GetProperty("customerIdentity").GetProperty("deviceId").GetString());
-        Assert.Equal(3, input.GetProperty("resultSpecs").GetArrayLength());
-        Assert.Equal("catalog_album", input.GetProperty("resultSpecs")[0].GetProperty("documentSpecs")[0].GetProperty("type").GetString());
-    }
-
-    [Fact]
     public void AlbumTracks_SelectsTheTrackArrayDirectly()
     {
         Assert.Contains("tracks {", AmazonMusicOperations.GetAlbumTracks, System.StringComparison.Ordinal);

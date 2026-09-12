@@ -97,6 +97,9 @@ public class WebPlayerGraphQlTransportTests
                 "TEST_KEY",
                 "test-version",
                 "TEST_DEVICE",
+                "TEST_DEVICE_ID",
+                "TEST_SESSION_ID",
+                new WebPlayerCsrf("TEST_TOKEN", "0", "0"),
                 DateTimeOffset.UtcNow));
         }
     }

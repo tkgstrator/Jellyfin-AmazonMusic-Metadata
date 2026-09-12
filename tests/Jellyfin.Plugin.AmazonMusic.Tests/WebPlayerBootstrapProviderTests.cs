@@ -22,7 +22,7 @@ public class WebPlayerBootstrapProviderTests
             {
                 Assert.Equal(HttpMethod.Post, request.Method);
                 return Json("""
-                    {"version":"test","deviceType":"device","dragonflyBundle":"https://assets.example.invalid/dragonfly.js"}
+                    {"version":"test","deviceType":"device","deviceId":"device-id","sessionId":"session-id","csrf":{"token":"token","ts":"1","rnd":"2"},"dragonflyBundle":"https://assets.example.invalid/dragonfly.js"}
                     """);
             }
 
@@ -49,7 +49,7 @@ public class WebPlayerBootstrapProviderTests
         {
             calls++;
             return request.RequestUri!.AbsolutePath == "/config.json"
-                ? Json("{\"version\":\"test\",\"deviceType\":\"device\",\"dragonflyBundle\":\"https://assets.example.invalid/dragonfly.js\"}")
+                ? Json("{\"version\":\"test\",\"deviceType\":\"device\",\"deviceId\":\"device-id\",\"sessionId\":\"session-id\",\"csrf\":{\"token\":\"token\",\"ts\":\"1\",\"rnd\":\"2\"},\"dragonflyBundle\":\"https://assets.example.invalid/dragonfly.js\"}")
                 : Text("const FIREFLY_ANONYMOUS_WEB_API_KEY = \"TEST_KEY\";");
         });
         using var provider = new WebPlayerBootstrapProvider(

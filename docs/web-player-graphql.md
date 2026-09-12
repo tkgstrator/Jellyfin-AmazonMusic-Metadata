@@ -1,180 +1,150 @@
-# Amazon Music Web Player GraphQL 調査
+# Amazon Music Web Player API 調査
 
-調査日: 2026-09-11
+調査日: 2026-09-11〜2026-09-12
 
 ## 結論
 
-Amazon Musicの公開Web Playerは、未ログインの訪問者にも匿名セッションを発行する。
-desktop Webでは検索と詳細取得をApollo GraphQLの匿名経路へ送り、iOS/Androidだけが
-`tenzingTextSearch`をApollo local handlerで内部REST endpointへ変換する。
+Amazon Musicの公開Web Playerは、未ログインの訪問者にも匿名runtime contextを発行する。
+desktop Webの検索は`showSearch` BFFへ、曲・アルバム・アーティストの詳細取得はApollo
+GraphQLへ送る。
 
-これは公開APIの契約ではなくWeb Playerの内部実装である。bundle、operation、schema、
-endpoint、認証headerは予告なく変わる可能性がある。GraphQLによるID引きはJPでlive確認済み、
-desktop Webの匿名検索は静的経路を確認済みでopt-in live testによる最終確認を残している。
+いずれも公開API契約ではなくWeb Playerの内部実装である。endpoint、payload、schema、headerは
+予告なく変わる可能性があるため、unit fixtureとopt-in live testで変化を検出する。
 
-## 調査方法
+## 調査方法とデータ管理
 
-`https://music.amazon.co.jp/search` が返す HTML、`/config.json`、公開 JavaScript bundle
-を静的に調べた。ログイン、再生、購入、ライブラリ変更は行っていない。ブラウザでの
-Network 記録は調査環境に Playwright/Chromium がなかったため未実施であり、実装時の
-live test で補う。
+公開ページ、`POST /config.json?skipToken=false`、公開JavaScript bundleを静的解析し、JPの
+詳細取得をlive testした。2026-09-12にはブラウザDevToolsでdesktop検索のrequestを確認した。
+ログイン、再生、購入、ライブラリ変更は行っていない。
 
-調査に使った完全な HTML と bundle は Git 管理しない。config に含まれた IP address、
-device/session ID、CSRF 値と、bundle 内の有効な匿名 application keyも保存しない。
+完全なHTML/bundle/HAR、IP address、有効なapplication key、device/session/request ID、CSRF値、
+CookieはGit管理しない。fixtureは無効なダミー値だけを使う。
 
 ## Bootstrap
 
-JP Web Player では次の応答を確認した。
+JP Web Playerのguest configから以下を取得する。
 
-1. 公開ページが `main.<hash>.js` を読み込む。
-2. `POST /config.json?skipToken=false` が guest runtime config を返す。
-3. config の `dragonflyBundle` がカタログ実装を含む `dragonfly.<hash>.js` を指す。
-4. config と bundle から GraphQL endpoint、app version、device type、匿名 application keyを得る。
+- `dragonflyBundle`
+- `version`
+- `deviceType`, `deviceId`
+- `sessionId`
+- `displayLanguage`, `musicTerritory`, `marketplaceId`
+- `csrf.token`, `csrf.ts`, `csrf.rnd`
 
-確認時の匿名configは次の地域情報を返した。
+`accessToken`と`customerId`は未ログイン時に空である。runtime identifierとCSRF値はメモリ上の
+request生成にだけ使い、設定、cache key、ログ、例外へ保存しない。
 
-| 項目 | JP |
-| --- | --- |
-| `marketplaceId` | `A1VC38T7YXB528` |
-| `musicTerritory` | `JP` |
-| `displayLanguage` | `ja_JP` |
-| `siteRegion` | `FE` |
+## Desktop検索
 
-`accessToken` と `customerId` は空だった。device/session ID と CSRF 値はリクエストごとの
-runtime値であり、資料や設定へ固定しない。
+ブラウザ実測で確認したendpointは次である。
 
-## GraphQL transport
+```text
+POST https://fe.web.skill.music.a2z.com/api/showSearch
+Content-Type: text/plain;charset=UTF-8
+Origin: https://music.amazon.co.jp
+Referer: https://music.amazon.co.jp/
+```
 
-Web Player は Apollo GraphQL の HTTP POST を使う。通常bodyは次のenvelopeで、既定経路は
-persisted queryではなく完全なquery documentを送る。
+bodyはouter JSONで、3 fieldはいずれもJSONを文字列化した値である。
 
 ```json
 {
-  "operationName": "operationName",
-  "variables": {},
-  "query": "query operationName { ... }"
+  "keyword": "{...}",
+  "userHash": "{...}",
+  "headers": "{...}"
 }
 ```
 
-確認時の通常 endpoint は `https://gql.music.amazon.dev` だった。feature flag
-`isDragonflyFFCountryDomainEnabled` が有効な場合は国別 endpointを使い、JPでは
-`https://gql.music.amazon.co.jp` となる。endpointはconfigとfeature flagから毎回解決し、
-固定しない。
+- `keyword`: interface discriminatorと検索語
+- `userHash`: guestでは`level=LIBRARY_MEMBER`
+- `headers`: Web PlayerがBFFへ渡すrequest context
 
-匿名経路で確認したheader名は次のとおり。
+`headers`の主な構造は以下である。
 
-- `x-api-key`
-- `x-amzn-device-id`
-- `x-amzn-device-type`
-- `x-amzn-session-id`
-- `music-territory`
-- `Accept-Language`
-- `x-amzn-client-app-version`
-- `x-amzn-trace-start`
-- `Content-Type: application/json`
+- 空access tokenを持つ`x-amzn-authentication`
+- device model/family (`WEBPLAYER` / `WebPlayer`)
+- device/session/request ID
+- device language、currency、timezone
+- application version、timestamp
+- config由来CSRF metadata
+- music domain、referer、page URL
+- Web Player feature flags
 
-`x-api-key` は公開bundleに埋め込まれた匿名Web Player用application identifierから実行時に
-取得する。値をsource、設定、fixture、cache key、例外、ログへ書かない。GraphQL経路では
-SigV4などのrequest signingは確認されなかった。
+これらはHTTP request headerではなく、outer bodyの`headers` JSON文字列内に入る。検索cache keyは
+marketplace、locale、検索語だけから作り、session/CSRF/device/request IDを含めない。
 
-Cookie認証経路と `Authorization: AmznMusic ...` を使うaccount token経路もbundle内に存在
-するが、プラグインでは使用しない。
+検索response schemaはまだlive確認していない。schemaを推測せずraw JSONで受け、opt-in live testで
+最小fixtureを確定してからoperation固有parserを実装する。
 
-## 詳細取得用GraphQL operation
+## Mobile向け別検索経路
 
-| 用途 | operation |
-| --- | --- |
-| アルバム基本情報 | `getAlbumMetadata`, `albumMetadata` |
-| アルバム収録曲 | `getAlbumTracks` |
-| 曲のID引き | `trackMetadata` |
-| アーティスト概要 | `getArtistSummary`, `getArtistByAsin` |
-
-JPの匿名guestで公開ASINを使って実測した結果、4 operationともHTTP 200、GraphQL errorなしで
-取得できた。`album.tracks`はconnectionではなくTrackの配列であり、各Trackのfieldを直接選択する。
-`getArtistSummary`では`followerCount`、`biography`、`tracks`がfield-level permission errorになるため、
-匿名で許可された`id`、`name`、`images`だけを選択する。
-
-## 検索経路
-
-検索UIはApollo上で`tenzingTextSearch`を発行する。desktop Webではlocal handlerを登録せず、
-通常のFirefly GraphQL HttpLinkへ送る。空のPanda tokenは失敗条件ではなく、Web Playerは
-`deviceId`、`deviceType`、`sessionId`、`musicTerritory`、匿名client IDから認証contextを作り、
-匿名`x-api-key`とdevice/session headerへ展開する。
-
-iOS/Androidでは同名operationをlocal handlerが横取りし、次のREST requestへ変換する。
+公開bundleにはiOS/Android向けTenzing RESTも存在する。
 
 ```text
 POST https://music.amazon.com/{region}/api/textsearch/search/v1_1/
 X-Amz-Target: com.amazon.tenzing.textsearch.v1_1.TenzingTextSearchServiceExternalV1_1.search
 x-amz-access-token: <runtime token>
-Content-Encoding: amz-1.0
 ```
 
-JPの`region`は`FE`である。このREST経路をdesktop Webへ適用してはいけない。以前のprobeで
-GraphQL schema errorになったのはWeb Playerの完全なquery/fragmentを再現しておらず、desktop
-経路を否定する根拠にはならない。実装した最小queryはAlbum/Artist/Trackだけを選択し、bundleと
-同じ`TenzingTextSearchGqlRequest`とrequest shapeを使う。live確認は通常skipのtestとして残す。
+これはdesktop `showSearch` BFFとは別契約であり、headerやpayloadを流用しない。Apollo上の
+`tenzingTextSearch` documentもクライアント内の抽象であり、GraphQL endpointへ直接送るとremote
+schemaに存在せずHTTP 400になる。
 
-検索backendのresource discriminatorとして以下を確認した。
+## 詳細取得GraphQL
 
-- `com.amazon.music.platform.model#CatalogAlbum`
-- `com.amazon.music.platform.model#CatalogArtist`
-- `com.amazon.music.platform.model#CatalogTrack`
+通常endpointは`https://gql.music.amazon.dev`で、country-domain feature flagが有効な場合はJPなら
+`https://gql.music.amazon.co.jp`になる。匿名application keyは公開bundleから実行時に取得し、値を
+保存・ログ出力しない。
 
-主なIDはASINであり、アーティストでは`localAsin`も使われる。IDと取得可能な内容は
-marketplace/territoryに依存する可能性があるため、ID引きが成立した場合はJellyfinへIDと
-marketplaceを必ず対で保存する。
+JP anonymous guestで次をlive確認した。
 
-## Response schema
+| 用途 | operation | 結果 |
+| --- | --- | --- |
+| 曲 | `trackMetadata` | HTTP 200、errorなし |
+| アルバム | `getAlbumMetadata` | HTTP 200、errorなし |
+| 収録曲 | `getAlbumTracks` | HTTP 200、errorなし |
+| アーティスト | `getArtistSummary` | HTTP 200、許可fieldではerrorなし |
 
-実装に必要な範囲で次のfieldを確認した。
+`album.tracks`はconnectionではなくTrack配列である。Artistの`followerCount`、`biography`、`tracks`は
+anonymous guestで権限エラーになるため、`id`、`name`、`images`だけを選択する。
 
-- Album: `id`, `title`, `copyright`, `trackCount`, `duration`, `releaseDate`, `format`,
-  `audioQualities`, `images`, `contributingArtists`
-- Artist: `id`, `name`, `images`（`followerCount`、`biography`、`tracks`は匿名guestで権限なし）
-- Track: `id`, `title`, `shortTitle`, `releaseDate`, `languageOfPerformance`, `images`,
-  `parentalSettings`, `album`, `contributingArtists`
-- Album tracks: `album.tracks[]`（connectionではなくTrackの配列）
-- Image: `url`, `width`, `height`, `imageType`
+主要匿名header:
 
-標準envelopeは `{ "data": { ... }, "errors": [...] }` である。HTTP 200でも `errors` があり
-必須dataが欠ける場合はprotocol failureとして扱い、not-foundとしてnegative cacheしては
-ならない。明示的なresource nullまたは空検索だけをnot-foundとする。
+- `x-api-key`
+- `x-amzn-device-id`, `x-amzn-device-type`, `x-amzn-session-id`
+- `music-territory`, `Accept-Language`
+- `x-amzn-client-app-version`, `x-amzn-trace-start`
+- `Content-Type: application/json`
 
-## Artwork
+## Responseとartwork
 
-GraphQLは具体的な `images[].url` を返す。Apple Musicのようなサイズplaceholderではない。
-検索converterは `artOriginal.URL` をそのままURLにし、width/heightへ1400を後付けする場合が
-あるため、寸法がサーバー実測値とは限らない。
+GraphQL envelopeは`data`と任意の`errors`を持つ。HTTP 200でも必須dataが欠けるerror responseは
+protocol failureであり、not-foundとしてnegative cacheしない。
 
-URLはopaqueとして一切加工しない。Amazon固有に見える `_SX` / `_SL` などの変換を推測で
-適用しない。
+画像は具体的な`images[].url`で返る。検索converterが寸法を後付けする場合があるため、URLを
+opaqueとして扱い、`_SX`/`_SL`等を推測で書き換えない。
 
 ## エラーと負荷制御
 
-- 429はnot-foundではなく専用例外として伝え、cacheしない。
-- 401/403はbootstrapを一度だけ更新して再送し、再失敗時は例外にする。
-- GraphQL error、壊れたJSON、5xxもnegative cacheしない。
-- ID引きを直列化し、間隔を空ける。検索を実装する場合も同じ制御に通す。
-- marketplace fallbackは明示的not-found/空結果のときだけ行う。
-- 429の閾値や `Retry-After` の挙動は未確認であり、live testは少数のrequestに留める。
+- 429は専用例外として伝え、cacheしない。
+- 401/403、5xx、壊れたJSONもnegative cacheしない。
+- cache → throttle → networkの順を維持する。
+- marketplace fallbackは明示的not-found/空結果だけで行う。
+- live testは少数requestに限定する。
 
-## Bundle変更時の再調査
+## 変更時の再調査
 
-1. JP/USの公開Web Playerからentry HTMLとguest configを一時領域へ取得する。
-2. `main.<hash>.js` とconfig内の `dragonflyBundle` を特定する。
-3. desktop GraphQL検索、mobile REST handler、詳細取得operation、匿名header生成、endpoint解決を静的に確認する。
-4. 実測値をredactした最小fixtureだけを更新する。
-5. opt-in live testでbootstrap、desktop検索、ID round-tripを確認する。
-6. 完全bundle、有効なapplication key、Cookie、account token、runtime識別子はコミットしない。
+1. guest configと公開bundleを一時領域へ取得する。
+2. `showSearch` requestをブラウザNetworkで確認する。
+3. 詳細GraphQL operationと匿名header生成を静的確認する。
+4. runtime値をredactした最小fixtureだけを更新する。
+5. opt-in live testでbootstrap、検索、ID round-tripを確認する。
+6. bundle、Cookie、token、runtime identifierをコミットしない。
 
 ## 未確認事項
 
-- ブラウザNetwork上の最終request/response
-- USでの各operationのguest許可範囲
-- 429閾値と `Retry-After`
+- `showSearch` response schema
+- USでの検索BFF contextと詳細operationの許可範囲
+- 429閾値と`Retry-After`
 - ASINのterritory間互換性
 - 自動取得、cache、artwork利用に関する利用条件
-
-実装前提として扱う観測事実と、live testで確認すべき仮説を分け、内部APIの変化を
-「カタログに存在しない」という結果へ変換しないことが重要である。

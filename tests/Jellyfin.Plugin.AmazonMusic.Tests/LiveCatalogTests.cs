@@ -31,36 +31,23 @@ public class LiveCatalogTests
     }
 
     [Fact(Skip = LiveSkip)]
-    public async Task JapaneseGuestSearchMatchesTheExpectedSchema()
+    public async Task JapaneseGuestSearchReturnsJson()
     {
         using var client = new HttpClient();
         using var provider = new WebPlayerBootstrapProvider(
             client,
             NullLogger<WebPlayerBootstrapProvider>.Instance);
-        var identity = new WebPlayerIdentity();
-        var bootstrap = await provider.GetAsync("jp", false, TestContext.Current.CancellationToken);
-        var transport = new WebPlayerGraphQlTransport(
+        var transport = new ShowSearchTransport(
             client,
             provider,
-            identity,
             () => TimeSpan.FromSeconds(30));
-        var request = GraphQlRequestBuilder.BuildSearch(
-            "jp",
-            "aiko",
-            identity.DeviceId,
-            bootstrap.DeviceType,
-            bootstrap.Marketplace.Locale,
-            bootstrap.Marketplace.Territory,
-            1);
+        var request = ShowSearchRequestBuilder.Build("jp", "aiko");
 
         var response = await transport.SendAsync(request, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(response);
+        Assert.False(string.IsNullOrWhiteSpace(response));
         using var document = JsonDocument.Parse(response);
-        Assert.False(document.RootElement.TryGetProperty("errors", out var errors) && errors.GetArrayLength() > 0);
-        Assert.NotEqual(
-            JsonValueKind.Null,
-            document.RootElement.GetProperty("data").GetProperty("tenzingTextSearch").ValueKind);
+        Assert.Equal(JsonValueKind.Object, document.RootElement.ValueKind);
     }
 
     [Theory(Skip = LiveSkip)]

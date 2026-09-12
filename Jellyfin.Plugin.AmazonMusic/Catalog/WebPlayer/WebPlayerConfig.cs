@@ -9,4 +9,7 @@ public sealed record WebPlayerConfig(
     Uri DragonflyBundle,
     string AppVersion,
     string DeviceType,
+    string DeviceId,
+    string SessionId,
+    WebPlayerCsrf Csrf,
     Uri GraphQlEndpoint);

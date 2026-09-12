@@ -3,16 +3,16 @@
 ## 現行構成
 
 このプラグインの現行版に自前バックエンドは不要である。Amazon Musicの公開Web Playerが
-未ログインの訪問者に提供する匿名bootstrapを実行し、Web Player内部のGraphQL endpointへ
-プラグインから直接問い合わせる。
+未ログインの訪問者に提供する匿名bootstrapを実行し、検索BFFと詳細取得GraphQLへプラグインから
+直接問い合わせる。
 
 ```text
 Jellyfin provider
   → AmazonMusicCatalog
     → CachingCatalogTransport
       → ThrottledCatalogTransport
-        → WebPlayerGraphQlTransport
-          → Amazon Music Web Player GraphQL
+        ├─ ShowSearchTransport → desktop検索BFF
+        └─ WebPlayerGraphQlTransport → 詳細取得GraphQL
 ```
 
 確認済みのbootstrapとGraphQL仕様は
@@ -29,17 +29,17 @@ Jellyfin provider
 - Developer Token
 - MusicKitの秘密鍵（`.p8`）
 
-匿名リクエストの`x-api-key`は、公開Web PlayerのJavaScript bundleから実行時に取得する
-application identifierである。値は設定、ソースコード、fixture、ディスクcacheへ保存せず、
-ログや例外にも出力しない。device IDとsession IDもプロセス内だけで保持する。
+詳細取得GraphQLの`x-api-key`は、公開Web PlayerのJavaScript bundleから実行時に取得する
+application identifierである。検索BFFはguest configのsession/device/CSRF contextをrequest bodyへ
+格納する。値は設定、ソースコード、fixture、ディスクcacheへ保存せず、ログや例外にも出力しない。
 
 Developer Token、MusicKit、`.p8`はApple Musicの認証方式であり、Amazon Musicの匿名Web
-Player GraphQLには関係しない。
+Player APIには関係しない。
 
 ## 内部APIとしての制約
 
-利用しているGraphQLは公開API契約ではなく、Amazon Music Web Playerの内部実装である。
-endpoint、operation、schema、header、bundle構造は予告なく変わる可能性がある。このため、
+利用している検索BFFとGraphQLは公開API契約ではなく、Amazon Music Web Playerの内部実装である。
+endpoint、payload、operation、schema、header、bundle構造は予告なく変わる可能性がある。このため、
 次の境界を分離する。
 
 - endpointと匿名headerの解決: `WebPlayerGraphQlTransport`
@@ -62,29 +62,28 @@ network実装だけを差し替える。
 CatalogRequest
   ├─ HTTP method
   ├─ relative URL
-  ├─ GraphQL request body
+  ├─ operation-specific request body
   ├─ stable cache key
-  └─ request kind (Lookup; Search is reserved)
+  └─ request kind (Search / Lookup)
         ↓
 ICatalogTransport.SendAsync(...)
         ↓
-raw GraphQL JSONまたは明示的なnot-found
+raw JSONまたは明示的なnot-found
 ```
 
-バックエンドtransportは、プラグインが作成した検索・詳細取得用GraphQL operationとvariablesを
-上流へ中継し、レスポンス本文を再整形せず返す。こうすることで、operation固有DTO、parse、
-marketplace fallback、cache、throttleを直接接続時と共有できる。mobile専用のREST検索経路は
-この契約の対象にしない。
+バックエンドtransportは、検索BFFまたは詳細取得GraphQLのoperation-specific requestを上流へ
+中継し、レスポンス本文を再整形せず返す。こうすることで、operation固有DTO、parse、marketplace
+fallback、cache、throttleを直接接続時と共有できる。
 
 ## 将来の中継契約
 
 ### Request
 
 - Method: `POST`
-- Content-Type: `application/json`
-- Body: `operationName`、`variables`、`query`を持つGraphQL envelope
+- Search: `text/plain;charset=UTF-8`の`showSearch` BFF payload
+- Lookup: `application/json`のGraphQL envelope
 - Marketplace: request pathまたは専用headerで明示
-- Localeとterritory: variablesまたは専用headerで明示
+- Localeとterritory: operation-specific contextで明示
 
 中継バックエンド自身を保護する認証方式は、実装時に別途決める。Amazon Music Web Playerの
 匿名`x-api-key`を利用者に入力させたり、プラグイン設定へ保存したりしてはならない。

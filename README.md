@@ -9,14 +9,14 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## 現状
 
-Amazon Music の公開 Web Player が使う**匿名 GraphQL 経路**を検証している。2026-09-11の
-静的解析により、desktop Webの検索は`tenzingTextSearch`を通常のGraphQL HttpLinkへ送り、
-iOS/AndroidだけがApollo local handlerで内部REST endpointへ変換することを確認した。調査記録は
-[docs/web-player-graphql.md](docs/web-player-graphql.md) にまとめている。
+Amazon Music の公開 Web Player が使う匿名カタログ経路を検証している。2026-09-12の
+ブラウザ実測により、desktop Webの検索は`showSearch` BFFへ送られ、詳細取得は匿名GraphQLを
+使うことを確認した。調査記録は[docs/web-player-graphql.md](docs/web-player-graphql.md)に
+まとめている。
 
 この経路は公開 API ではなく Web Player の内部実装である。JPではGraphQLによる曲・アルバム・
-アーティストのID引きを実通信で確認した。desktop Webの匿名検索経路は静的に確認済みで、live
-testによる最終確認を残している。Amazonアカウントやaccount Cookie/tokenを要求する方式は採用しない。
+アーティストのID引きを実通信で確認した。desktop Webの匿名検索BFFはrequest契約をブラウザで確認済みで、live
+testによるresponse schemaの確認を残している。Amazonアカウントやaccount Cookie/tokenを要求する方式は採用しない。
 
 | 層 | 状態 |
 | --- | --- |
@@ -24,10 +24,10 @@ testによる最終確認を残している。Amazonアカウントやaccount Co
 | 外部 ID（曲・アルバム・アーティスト・マーケットプレイス） | 動く |
 | 応答キャッシュ（メモリ上限つき LRU + ディスク永続化 + 同時リクエストの束ね） | 動く |
 | スロットル（直列化・間隔・429 のクールダウン） | 動く |
-| `ICatalogTransport`（生 JSON を返す契約） | GraphQL POST 対応済み |
+| `ICatalogTransport`（生 JSON を返す契約） | POST 対応済み |
 | `IAmazonMusicCatalog`（検索と ID 引きの契約） | 定義済み・型引数は未確定 |
 | 匿名 Web Player bootstrap / GraphQL transport | 実装済み・JPの曲/アルバム/アーティストID引きをlive確認済み |
-| 匿名検索 | desktop GraphQL経路を実装済み・live確認待ち |
+| 匿名検索 | desktop `showSearch` BFF経路を実装済み・live確認待ち |
 | DTO（応答スキーマ） | ID 引き operation 単位で実装予定 |
 | メタデータ / 画像プロバイダ | 未着手 |
 
@@ -38,10 +38,10 @@ version、device type、匿名 application key を実行時に取得し、詳細
 を呼ぶ。JPでは曲・アルバム・アーティストの詳細取得とアルバム収録曲をlive確認済みで、アーティストは
 匿名で許可されたID・名前・画像だけを使う。application key の実値はソース、設定、fixture、ログへ保存しない。
 
-desktop Webの検索は`tenzingTextSearch`を匿名GraphQLとして送る。空のPanda tokenは失敗条件では
-なく、Web Playerがdevice/session/territoryと匿名client IDからheaderを構築する。iOS/Androidの
-同名operationはlocal handlerがRESTへ変換する別経路である。アートワークURLはサイズ置換せず
-opaqueな値としてJellyfinへ渡し、IDとmarketplaceを必ず対で保存する。
+desktop Webの検索は`showSearch` BFFへ送る。検索語、guest session、device、CSRFなどの
+Web Player contextは観測済みの二重JSON形式でrequest bodyへ格納するが、runtime値をcacheや
+ログへ残さない。詳細取得は匿名GraphQLを使う。アートワークURLはサイズ置換せずopaqueな値として
+Jellyfinへ渡し、IDとmarketplaceを必ず対で保存する。
 
 内部 API の変更や利用条件には注意が必要である。fixture ベースの unit test に加えて、
 通常 CI から除外した live test で bundle と schema の変更を検出する。

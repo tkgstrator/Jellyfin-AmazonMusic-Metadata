@@ -24,7 +24,7 @@ public class WebPlayerBootstrapParserTests
     public void ParseConfig_UsesCountryEndpointWhenEnabled()
     {
         const string json = """
-            {"version":"test","deviceType":"test","dragonflyBundle":"/dragonfly.js","isDragonflyFFCountryDomainEnabled":true}
+            {"version":"test","deviceType":"test","deviceId":"device-id","sessionId":"session-id","csrf":{"token":"token","ts":"1","rnd":"2"},"dragonflyBundle":"/dragonfly.js","isDragonflyFFCountryDomainEnabled":true}
             """;
 
         var config = WebPlayerBootstrapParser.ParseConfig(json, MarketplaceDefinition.Resolve("jp"));

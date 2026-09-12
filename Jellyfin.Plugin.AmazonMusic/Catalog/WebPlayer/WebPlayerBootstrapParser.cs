@@ -24,6 +24,13 @@ public static partial class WebPlayerBootstrapParser
         var bundle = RequiredString(root, "dragonflyBundle");
         var version = RequiredString(root, "version");
         var deviceType = RequiredString(root, "deviceType");
+        var deviceId = RequiredString(root, "deviceId");
+        var sessionId = RequiredString(root, "sessionId");
+        if (!root.TryGetProperty("csrf", out var csrf) || csrf.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("The web player configuration did not contain csrf.");
+        }
+
         var countryDomain = root.TryGetProperty("isDragonflyFFCountryDomainEnabled", out var flag)
             && flag.ValueKind == JsonValueKind.True;
 
@@ -31,6 +38,12 @@ public static partial class WebPlayerBootstrapParser
             new Uri(marketplace.WebPlayerOrigin, bundle),
             version,
             deviceType,
+            deviceId,
+            sessionId,
+            new WebPlayerCsrf(
+                RequiredString(csrf, "token"),
+                RequiredString(csrf, "ts"),
+                RequiredString(csrf, "rnd")),
             countryDomain ? marketplace.CountryGraphQlEndpoint : _defaultGraphQlEndpoint);
     }
 

@@ -6,39 +6,6 @@ namespace Jellyfin.Plugin.AmazonMusic.Catalog.GraphQl;
 public static class AmazonMusicOperations
 {
     /// <summary>
-    /// Gets the desktop Web Player catalog search document.
-    /// </summary>
-    public const string TenzingTextSearch = """
-        query tenzingTextSearch($textSearchRequest: TenzingTextSearchGqlRequest) {
-          tenzingTextSearch(body: $textSearchRequest) {
-            result {
-              metricId edgeCount totalCount label
-              edges {
-                node {
-                  __typename
-                  ... on Album {
-                    id title releaseDate
-                    images { url width height }
-                    contributingArtists { edges { node { id name } role } }
-                  }
-                  ... on Artist {
-                    id name
-                    images { url width height imageType }
-                  }
-                  ... on Track {
-                    id title shortTitle releaseDate languageOfPerformance
-                    images { url width height }
-                    album { id title }
-                    contributingArtists { edges { node { id name } role } }
-                  }
-                }
-              }
-            }
-          }
-        }
-        """;
-
-    /// <summary>
     /// Gets the track metadata document.
     /// </summary>
     public const string TrackMetadata = """

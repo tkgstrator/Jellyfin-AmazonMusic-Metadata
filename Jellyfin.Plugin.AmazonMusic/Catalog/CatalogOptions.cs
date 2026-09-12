@@ -37,11 +37,6 @@ public class CatalogOptions
     public int MaxSearchResults { get; set; } = 25;
 
     /// <summary>
-    /// Gets or sets the edge length in pixels used when resolving artwork URLs.
-    /// </summary>
-    public int ArtworkSize { get; set; } = 1400;
-
-    /// <summary>
     /// Gets the Amazon Music language tag to use for a marketplace.
     /// </summary>
     /// <param name="marketplace">Marketplace identifier.</param>

@@ -9,14 +9,14 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 
 ## 現状
 
-Amazon Music の公開 Web Player が使う匿名カタログ経路を検証している。2026-09-12の
+Amazon Music の公開 Web Player が使う匿名カタログ経路を利用する。2026-09-12の
 ブラウザ実測により、desktop Webの検索は`showSearch` BFFへ送られ、詳細取得は匿名GraphQLを
 使うことを確認した。調査記録は[docs/web-player-graphql.md](docs/web-player-graphql.md)に
 まとめている。
 
-この経路は公開 API ではなく Web Player の内部実装である。JPではGraphQLによる曲・アルバム・
-アーティストのID引きを実通信で確認した。desktop Webの匿名検索BFFはrequest契約をブラウザで確認済みで、live
-testによるresponse schemaの確認を残している。Amazonアカウントやaccount Cookie/tokenを要求する方式は採用しない。
+この経路は公開 API ではなく Web Player の内部実装である。JPでは検索と、曲・アルバム・
+アーティストのID引きをlive testで確認済み。Amazonアカウントやaccount Cookie/tokenを
+要求する方式は採用しない。
 
 | 層 | 状態 |
 | --- | --- |
@@ -25,11 +25,11 @@ testによるresponse schemaの確認を残している。Amazonアカウント�
 | 応答キャッシュ（メモリ上限つき LRU + ディスク永続化 + 同時リクエストの束ね） | 動く |
 | スロットル（直列化・間隔・429 のクールダウン） | 動く |
 | `ICatalogTransport`（生 JSON を返す契約） | POST 対応済み |
-| `IAmazonMusicCatalog`（検索と ID 引きの契約） | 定義済み・型引数は未確定 |
+| `IAmazonMusicCatalog`（検索と ID 引きの契約） | 実装済み |
 | 匿名 Web Player bootstrap / GraphQL transport | 実装済み・JPの曲/アルバム/アーティストID引きをlive確認済み |
-| 匿名検索 | desktop `showSearch` BFF経路を実装済み・live確認待ち |
-| DTO（応答スキーマ） | ID 引き operation 単位で実装予定 |
-| メタデータ / 画像プロバイダ | 未着手 |
+| 匿名検索 | desktop `showSearch` BFF経路を実装済み・live確認済み |
+| DTO / parser | operation単位で実装済み |
+| メタデータ / 画像プロバイダ | 曲・アルバム・アーティスト、アルバム/アーティスト画像を実装済み |
 
 ## カタログ取得方針
 
@@ -63,9 +63,9 @@ ABI ごとに別 zip で出す。
 | 設定 | 意味 |
 | --- | --- |
 | Marketplaces | 問い合わせるマーケットプレイスの順（既定 `jp` → `us`） |
-| Language override | 言語タグの上書き。既定はマーケットプレイスに追従 |
+| Language override | localeの上書き。既定はマーケットプレイスに追従 |
 | Max search results | 検索の取得件数 |
-| Artwork size | アートワークの一辺（px） |
+| Request timeout | カタログ呼び出しのタイムアウト（秒） |
 | Request interval | リクエストの最小間隔（ミリ秒） |
 | Cache | 有効・寿命・メモリ上限・ディスクに書く上限サイズ |
 

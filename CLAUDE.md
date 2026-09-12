@@ -21,7 +21,7 @@ Amazon Music のカタログから曲・アルバム・アーティストのメ�
 アーティストの詳細とアルバム収録曲をGraphQLから取得できた。`album.tracks`はconnectionではなく
 Trackの配列で、アーティストは`followerCount`・`biography`・`tracks`が匿名では権限エラーになる。
 desktop Webの検索は2026-09-12のブラウザ実測で`showSearch` BFFへ送られることを確認した。
-検索responseのlive確認は未実施である。実測と制約は
+検索responseもlive確認済みである。実測と制約は
 [docs/web-player-graphql.md](docs/web-player-graphql.md) に記録する。
 
 公開 API の契約ではないため、bootstrap、transport、operation 固有 parser を分離し、opt-in

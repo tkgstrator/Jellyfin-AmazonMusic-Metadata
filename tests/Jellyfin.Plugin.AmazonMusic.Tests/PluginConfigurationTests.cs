@@ -25,7 +25,6 @@ public class PluginConfigurationTests
             Marketplaces = MarketplacePriority.UnitedStatesOnly,
             LanguageOverride = "en-gb",
             MaxSearchResults = 7,
-            ArtworkSize = 600,
         };
 
         var options = config.ToCatalogOptions();
@@ -33,6 +32,5 @@ public class PluginConfigurationTests
         Assert.Equal(["us"], options.Marketplaces);
         Assert.Equal("en-gb", options.LanguageOverride);
         Assert.Equal(7, options.MaxSearchResults);
-        Assert.Equal(600, options.ArtworkSize);
     }
 }

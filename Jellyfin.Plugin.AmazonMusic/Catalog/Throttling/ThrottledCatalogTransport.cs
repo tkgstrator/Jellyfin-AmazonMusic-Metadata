@@ -12,20 +12,17 @@ namespace Jellyfin.Plugin.AmazonMusic.Catalog.Throttling;
 /// <remarks>
 /// <para>
 /// A library scan hands every track to the providers in parallel, so without
-/// this the plugin fires as many searches at once as the server has cores.
-/// amp-api limits the search endpoint per IP address, reports neither the
-/// quota nor a Retry-After, and keeps refusing for a long time once tripped —
-/// so the only safe policy is to never burst in the first place.
+/// this the plugin sends a burst of catalog requests. Requests are serialized
+/// and spaced out to avoid overwhelming the Web Player services.
 /// </para>
 /// <para>
 /// One request at a time, at least <see cref="ThrottleOptions.MinInterval"/>
 /// apart. A 429 pauses requests of the same kind — search, or id lookup —
 /// for a cooldown that doubles on each consecutive refusal; the refused
 /// request is retried after the pause, up to
-/// <see cref="ThrottleOptions.MaxAttempts"/> times. The two kinds are paused
-/// separately because Apple has been observed refusing searches for hours
-/// while still answering id lookups, and a tagged library needs only the
-/// latter. Once the cooldown has hit
+/// <see cref="ThrottleOptions.MaxAttempts"/> times. Search and id lookups use
+/// separate pauses so one unavailable service does not stop the other. Once
+/// the cooldown has hit
 /// its ceiling the catalog is clearly refusing for a while, so lookups that
 /// arrive during the pause fail immediately instead of queueing for minutes —
 /// the scan then finishes without those items and a later refresh fills them

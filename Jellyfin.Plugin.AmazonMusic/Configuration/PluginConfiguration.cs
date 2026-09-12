@@ -43,12 +43,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public PluginConfiguration()
     {
-        BackendBaseUrl = string.Empty;
-        BackendApiKey = string.Empty;
         Marketplaces = MarketplacePriority.JapanThenUnitedStates;
         LanguageOverride = string.Empty;
         MaxSearchResults = 25;
-        ArtworkSize = 1400;
         RequestTimeoutSeconds = 30;
         RequestIntervalMilliseconds = 1000;
         EnableCache = true;
@@ -59,25 +56,13 @@ public class PluginConfiguration : BasePluginConfiguration
     }
 
     /// <summary>
-    /// Gets or sets the base URL of a self-hosted Amazon Music backend. Reserved
-    /// for the backend transport; leave empty to use the web player token.
-    /// </summary>
-    public string BackendBaseUrl { get; set; }
-
-    /// <summary>
-    /// Gets or sets the API key sent to the backend in the
-    /// <c>X-Api-Key</c> header. Leave empty if the backend needs no auth.
-    /// </summary>
-    public string BackendApiKey { get; set; }
-
-    /// <summary>
     /// Gets or sets the marketplace query order.
     /// </summary>
     public MarketplacePriority Marketplaces { get; set; }
 
     /// <summary>
-    /// Gets or sets an explicit language tag (Amazon Music <c>l</c> parameter)
-    /// such as <c>ja-jp</c> or <c>en-us</c>. When empty, the language is
+    /// Gets or sets an explicit Amazon Music locale
+    /// such as <c>ja_JP</c> or <c>en_US</c>. When empty, the language is
     /// derived from the marketplace being queried.
     /// </summary>
     public string LanguageOverride { get; set; }
@@ -88,21 +73,14 @@ public class PluginConfiguration : BasePluginConfiguration
     public int MaxSearchResults { get; set; }
 
     /// <summary>
-    /// Gets or sets the edge length in pixels used when resolving Amazon Music
-    /// artwork URL templates.
-    /// </summary>
-    public int ArtworkSize { get; set; }
-
-    /// <summary>
     /// Gets or sets the per-request timeout in seconds for catalog calls.
     /// </summary>
     public int RequestTimeoutSeconds { get; set; }
 
     /// <summary>
     /// Gets or sets the minimum time between two catalog requests, in
-    /// milliseconds. Apple limits the search endpoint per IP address and keeps
-    /// refusing for a long time once tripped, so requests are never sent in
-    /// parallel and are spaced out by at least this much.
+    /// milliseconds. Requests are serialized and spaced out to avoid bursts
+    /// against the Web Player services.
     /// </summary>
     public int RequestIntervalMilliseconds { get; set; }
 
@@ -161,7 +139,6 @@ public class PluginConfiguration : BasePluginConfiguration
             Marketplaces = GetMarketplaceOrder(),
             LanguageOverride = LanguageOverride,
             MaxSearchResults = MaxSearchResults,
-            ArtworkSize = ArtworkSize,
         };
     }
 

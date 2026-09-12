@@ -73,8 +73,8 @@ bodyはouter JSONで、3 fieldはいずれもJSONを文字列化した値であ�
 これらはHTTP request headerではなく、outer bodyの`headers` JSON文字列内に入る。検索cache keyは
 marketplace、locale、検索語だけから作り、session/CSRF/device/request IDを含めない。
 
-検索response schemaはまだlive確認していない。schemaを推測せずraw JSONで受け、opt-in live testで
-最小fixtureを確定してからoperation固有parserを実装する。
+検索responseはlive確認済みで、`methods[].template.widgets[].items[]`からdeeplinkを読み、曲・
+アルバム・アーティストへ正規化する。fixtureには実際の識別子やruntime値を残さない。
 
 ## Mobile向け別検索経路
 
@@ -143,7 +143,6 @@ opaqueとして扱い、`_SX`/`_SL`等を推測で書き換えない。
 
 ## 未確認事項
 
-- `showSearch` response schema
 - USでの検索BFF contextと詳細operationの許可範囲
 - 429閾値と`Retry-After`
 - ASINのterritory間互換性

@@ -10,31 +10,6 @@
         <div data-role="content">
             <div class="content-primary">
                 <form id="AmazonMusicConfigForm">
-                    <h2>Backend</h2>
-                    <div class="fieldDescription" style="margin-bottom:1em;">
-                        <strong>Not used yet.</strong> Metadata is currently read straight from the
-                        Amazon Music catalog, which needs no account and no key. These settings are
-                        reserved for the upcoming self-hosted backend transport.
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="BackendBaseUrl">Backend base URL</label>
-                        <input id="BackendBaseUrl" name="BackendBaseUrl" type="url" is="emby-input"
-                               placeholder="https://backend.example.com" />
-                        <div class="fieldDescription">
-                            Base URL of your self-hosted Amazon Music proxy. It must expose the Amazon Music
-                            catalog endpoints (<code>/v1/catalog/{marketplace}/...</code>) and return the
-                            upstream JSON verbatim.
-                        </div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="BackendApiKey">Backend API key</label>
-                        <input id="BackendApiKey" name="BackendApiKey" type="password" is="emby-input" />
-                        <div class="fieldDescription">
-                            Sent as the <code>X-Api-Key</code> request header. Leave empty if the backend
-                            requires no authentication.
-                        </div>
-                    </div>
-
                     <h2>Catalog</h2>
                     <div class="selectContainer">
                         <label class="selectLabel" for="Marketplaces">Marketplace order</label>
@@ -46,17 +21,17 @@
                             <option value="UnitedStatesOnly">United States only</option>
                         </select>
                         <div class="fieldDescription">
-                            Marketplaces are tried in order until a match is found. The Amazon Music language
-                            parameter follows the marketplace (<code>jp</code> &rarr; <code>ja-jp</code>,
-                            <code>us</code> &rarr; <code>en-us</code>) unless overridden below.
+                            Marketplaces are tried in order until a match is found. The Amazon Music locale
+                            follows the marketplace (<code>jp</code> &rarr; <code>ja_JP</code>,
+                            <code>us</code> &rarr; <code>en_US</code>) unless overridden below.
                         </div>
                     </div>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="LanguageOverride">Language override</label>
                         <input id="LanguageOverride" name="LanguageOverride" type="text" is="emby-input"
-                               placeholder="ja-jp" />
+                               placeholder="ja_JP" />
                         <div class="fieldDescription">
-                            Optional. Forces the Amazon Music <code>l</code> parameter for every marketplace.
+                            Optional. Forces the Amazon Music locale for every marketplace.
                             Leave empty to derive it from the marketplace.
                         </div>
                     </div>
@@ -66,14 +41,6 @@
                         <label class="inputLabel inputLabelUnfocused" for="MaxSearchResults">Max search results</label>
                         <input id="MaxSearchResults" name="MaxSearchResults" type="number" is="emby-input"
                                min="1" max="100" />
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="ArtworkSize">Artwork size (px)</label>
-                        <input id="ArtworkSize" name="ArtworkSize" type="number" is="emby-input"
-                               min="100" max="5000" />
-                        <div class="fieldDescription">
-                            Edge length substituted into the Amazon Music artwork URL template.
-                        </div>
                     </div>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="RequestTimeoutSeconds">
@@ -89,8 +56,7 @@
                         <input id="RequestIntervalMilliseconds" name="RequestIntervalMilliseconds" type="number"
                                is="emby-input" min="0" max="60000" step="100" />
                         <div class="fieldDescription">
-                            Amazon may rate-limit the catalog per IP address, so requests are paced and never run in parallel; the
-                            limit is hit. Requests are sent one at a time, at least this far apart. Raise it if
+                            Requests are sent one at a time and spaced by at least this interval. Raise it if
                             the log reports rate limiting.
                         </div>
                     </div>
@@ -171,15 +137,12 @@
             };
 
             document.querySelector('#AmazonMusicConfigPage')
-                .addEventListener('pageshow', function () {
+                .addEventListener('pageshow', () => {
                     Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(AmazonMusicConfig.pluginUniqueId).then(function (config) {
-                        document.querySelector('#BackendBaseUrl').value = config.BackendBaseUrl;
-                        document.querySelector('#BackendApiKey').value = config.BackendApiKey;
+                    ApiClient.getPluginConfiguration(AmazonMusicConfig.pluginUniqueId).then((config) => {
                         document.querySelector('#Marketplaces').value = config.Marketplaces;
                         document.querySelector('#LanguageOverride').value = config.LanguageOverride;
                         document.querySelector('#MaxSearchResults').value = config.MaxSearchResults;
-                        document.querySelector('#ArtworkSize').value = config.ArtworkSize;
                         document.querySelector('#RequestTimeoutSeconds').value = config.RequestTimeoutSeconds;
                         document.querySelector('#RequestIntervalMilliseconds').value =
                             config.RequestIntervalMilliseconds;
@@ -194,20 +157,13 @@
                     });
                 });
 
-                });
-
-                });
-
             document.querySelector('#AmazonMusicConfigForm')
-                .addEventListener('submit', function (e) {
+                .addEventListener('submit', (e) => {
                     Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(AmazonMusicConfig.pluginUniqueId).then(function (config) {
-                        config.BackendBaseUrl = document.querySelector('#BackendBaseUrl').value;
-                        config.BackendApiKey = document.querySelector('#BackendApiKey').value;
+                    ApiClient.getPluginConfiguration(AmazonMusicConfig.pluginUniqueId).then((config) => {
                         config.Marketplaces = document.querySelector('#Marketplaces').value;
                         config.LanguageOverride = document.querySelector('#LanguageOverride').value;
                         config.MaxSearchResults = parseInt(document.querySelector('#MaxSearchResults').value, 10);
-                        config.ArtworkSize = parseInt(document.querySelector('#ArtworkSize').value, 10);
                         config.RequestTimeoutSeconds = parseInt(
                             document.querySelector('#RequestTimeoutSeconds').value, 10);
                         config.RequestIntervalMilliseconds = parseInt(
@@ -222,7 +178,7 @@
                         config.MaxPersistedEntryKilobytes = parseInt(
                             document.querySelector('#MaxPersistedEntryKilobytes').value, 10);
                         ApiClient.updatePluginConfiguration(AmazonMusicConfig.pluginUniqueId, config)
-                            .then(function (result) {
+                            .then((result) => {
                                 Dashboard.processPluginConfigurationUpdateResult(result);
                             });
                     });

@@ -59,12 +59,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     /// so hits are not paced; the throttle sits inside it so every request that
     /// really leaves the plugin is paced, including the ones a cache miss
     /// issues.
-    /// <para>
-    /// The network transport itself is the one piece still missing: how the
-    /// Amazon Music catalog is reached has not been settled (see the README).
-    /// Once it exists, register it and hand it to this method, and everything
-    /// above it works unchanged.
-    /// </para>
     /// </remarks>
     /// <param name="network">Transport that performs the actual request.</param>
     /// <param name="cache">Response cache.</param>

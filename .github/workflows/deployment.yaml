@@ -25,7 +25,7 @@ jobs:
     name: Integration
     uses: ./.github/workflows/integration.yaml
     with:
-      lint-commits: false
+      skip-commitlint: true
 
   deploy:
     name: Publish

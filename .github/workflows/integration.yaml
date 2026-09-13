@@ -11,10 +11,10 @@ on:
   pull_request:
   workflow_call:
     inputs:
-      lint-commits:
-        description: Run commitlint. Disabled when called from deployment.yaml, since merge commits are not Conventional Commits.
+      skip-commitlint:
+        description: Skip commitlint. Set by deployment.yaml, since merge commits are not Conventional Commits.
         type: boolean
-        default: true
+        default: false
 
 concurrency:
   group: integration-${{ github.ref }}
@@ -26,7 +26,11 @@ permissions:
 jobs:
   commitlint:
     name: Commit Lint
-    if: ${{ inputs.lint-commits != false }}
+    # The `inputs` context is empty for push and pull_request — not populated with
+    # the declared defaults — and an unset input compares equal to both `false` and
+    # `null`. So the flag has to be phrased so that "unset" and "not skipping" are
+    # the same value, or this job silently never runs outside workflow_call.
+    if: ${{ !inputs.skip-commitlint }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -42,10 +46,18 @@ jobs:
           bun install commitlint@latest
       - name: Validate PR commits
         if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          # Not `head.sha~<commits>`: `~` walks first parents, so the commit count
+          # only lines up while the branch is linear. A develop -> master PR carries
+          # merge commits, and the count then overshoots into the base branch's
+          # history — or past the root commit, which fails with
+          # "fatal: Needed a single revision". The merge base is the actual fork point.
           bunx commitlint \
-            --from ${{ github.event.pull_request.head.sha }}~${{ github.event.pull_request.commits }} \
-            --to ${{ github.event.pull_request.head.sha }} \
+            --from "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" \
+            --to "$HEAD_SHA" \
             --verbose
       - name: Validate last commit
         if: github.event_name == 'push'
